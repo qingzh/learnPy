@@ -17,3 +17,5 @@ class Test(object):
         print 'try profile of %s' % self
         # Do NOT use self.profile(value)
         a.__class__.__dict__['profile'].__set__(self, value)
+
+        
