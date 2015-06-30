@@ -1,111 +1,10 @@
 # -*- coding: utf-8 -*-
+
+"""
+
+"""
+
 import json
-
-
-"""
-Some thing about type(), isinstance()
-
-class Foo(object):
-
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return self.__dict__ == other.__dict__
-        else:
-            return False
-
-
-class Bar(Foo):pass
-
-
-class Cow(Bar): pass
-
-# Situation 1:
-  compare two object:
-
->>> b = Bar()
->>> f = Foo()
->>> b == f
-False
->>> f == b
-True
-
->>> isinstance(b, Foo)
-True
->>> isinstance(f, Bar)
-False
-
-## New Style Class
->>> type(b) == type(f)
-False
->>> type(b) is type(f)
-False
->>> type(f) == Foo
-True
->>> type(f) == Bar
-False
->>> type(f.__class__)
-type
-
-## Old Style Class
-class Foo: pass
-class Bar(Foo): pass
-
->>> type(b) == type(f)
-True
->>> type(f) == type(b)
-True
-
->>> f.__class__
-<class __main__.Foo at 0x6fffa68df58>
-
->>> Foo
-<class __main__.Foo at 0x6fffa68df58>
-
->>> type(f) == Foo
-False
-
->>> type(f) == Bar
-False
-
->>> f.__class__
-<class __main__.Foo at 0x6fffa68df58>
-
->>> type(f.__class__)
-classobj
-
->>> type(f) == Bar
-False
-
->>> type(b) == Foo
-False
-
->>> type(b) == Bar
-False
-
->>> type(f) == type(b)
-True
-
->>> b.__class__
-<class __main__.Bar at 0x6fffab75738>
-
->>> f.__class__
-<class __main__.Foo at 0x6fffa68df58>
-
->>> c = Cow()
->>> type(c) is Bar
-False
->>> type(c) == Bar
-False
->>> Bar is type(c)
-False
->>> Bar == type(c)
-False
->>> isinstance(c, Bar)
-True
-
-# New Style Class
-
-"""
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -130,13 +29,6 @@ class ReadOnlyObject(object):
 
 class ReadOnlyAttributeDict(ReadOnlyObject, dict):
 
-    '''
-    def __getitem__(self, key):
-        value = dict.__getitem__(self, key)
-        return ReadOnlyAttributeDict(value) if isinstance(value, dict) else value
-    __getattr__ = __getitem__
-    '''
-
     def __init__(self, *args, **kwargs):
         """
         take care of nested dict
@@ -149,106 +41,110 @@ class ReadOnlyAttributeDict(ReadOnlyObject, dict):
                                  key, ReadOnlyAttributeDict(value))
 
 
-class AttrDict(dict):
+class AttributeDict(dict):
 
     '''
-    def __getitem__(self, key):
-        value = dict.__getitem__(self, key)
-        return ReadOnlyAttributeDict(value) if isinstance(value, dict) else value
-    __getattr__ = __getitem__
+    we expect nested AttributeDict to be ReadOnlyAttributeDict ...
+    attr_dict = {
+                  "a": 1,
+                  "b": {
+                    "c": 3,
+                    "d": {
+                      "e": 5
+                    }
+                  },
+                  "f": None
+                }
+
+    >>> d = AttributeDict(attr_dict)
+    >>> d.keys = 123
+    ReadOnlyAttributeError                    Traceback (most recent call last)
+    ...
+    >>> d.f.g = 7
+    AttributeError: 'NoneType' object has no attribute 'g'
+    >>> d.a = {}
+    >>> d.g = 7
+    >>> d
+    {'a': {}, 'b': {'c': 3, 'd': {'e': 5}}, 'f': None, 'g': 7}
+
     '''
 
     def __init__(self, *args, **kwargs):
         """
         take care of nested dict
         """
-        super(AttrDict, self).__init__(*args, **kwargs)
-        super(AttrDict, self).__setattr__('__dict__', self)
-        for key, value in self.iteritems():
-            if isinstance(value, dict) and not isinstance(value, AttrDict):
-                super(AttrDict, self).__setitem__(
-                    key, AttrDict(value))
-
-
-class ReadOnlyAttrDict(ReadOnlyObject, AttrDict):
-
-    '''
-    we expect nested AttrDict to be ReadOnlyAttrDict ...
-    '''
-    pass
-
-
-class AttributeDict(dict):
-    __ro__ = False
-
-    def __init__(self, *args, **kwargs):
         super(AttributeDict, self).__init__(*args, **kwargs)
+        # self.__dict__ = self
         for key, value in self.iteritems():
-            if isinstance(value, dict) and not isinstance(value, self.__class__):
-                self[key] = AttributeDict(value)
+            # nested object
+            if isinstance(value, dict) and not isinstance(value, AttributeDict):
+                # get rid of override '__setattr__'
+                super(AttributeDict, self).__setattr__(
+                    key, AttributeDict(value))
+
+    __getattr__ = dict.__getitem__
 
     def __setitem__(self, key, value):
-        if self.__ro__ is True:
-            raise ReadOnlyAttributeError(
-                "%s.%s is read only!" % (self.__class__, key))
         if isinstance(value, dict) and not isinstance(value, self.__class__):
             value = AttributeDict(value)
-        super(AttributeDict, self).__setitem__(key, value)
-
-    '''
-
-    def __getitem__(self, key):
-        value = dict.__getitem__(self, key)
-        return ReadOnlyAttributeDict(value) if isinstance(value, dict) else value
-    '''
-    __getattr__ = dict.__getitem__
+        super(self.__class__, self).__setitem__(key, value)
 
     def __setattr__(self, key, value):
         """
         字典里不允许存在类默认的属性
         例如：iterkeys, __dict__ 之类
         """
-        if key in dir(dict):
-            raise ReadOnlyAttributeError(
-                "%s.%s is read-only!" % (self.__class__, key))
-        if key in vars(self.__class__):
+        if key in dir(AttributeDict):
             super(AttributeDict, self).__setattr__(key, value)
         else:
             self.__setitem__(key, value)
 
-    def read_only(self, allow):
-        self.__ro__ = allow
+
+class ReadOnlyAttributeDict(ReadOnlyObject, AttributeDict):
+
+    '''
+    we expect nested AttributeDict to be ReadOnlyAttributeDict ...
+    attr_dict = {
+                  "a": 1,
+                  "b": {
+                    "c": 3,
+                    "d": {
+                      "e": 5
+                    }
+                  },
+                  "f": None
+                }
+
+    >>> d = ReadOnlyAttributeDict(attr_dict)
+    >>> d.keys = 123
+    ReadOnlyAttributeError                    Traceback (most recent call last)
+    ...
+    >>> d.f.g = 7
+    AttributeError: 'NoneType' object has no attribute 'g'
+    >>> d.a = {}
+    ReadOnlyAttributeError: <class '__main__.ReadOnlyAttributeDict'>.a is read-only!
+    >>> d.g = 7
+    ReadOnlyAttributeError: <class '__main__.ReadOnlyAttributeDict'>.g is read-only!
+
+    '''
+    pass
 
 
-class NewAttributeDict(dict):
+class ReadOnlyAttributeDict(AttributeDict):
     __ro__ = False
     __marker__ = object()
-
-    def __init__(self, *args, **kwargs):
-        super(NewAttributeDict, self).__init__(*args, **kwargs)
-        for key, value in self.iteritems():
-            if isinstance(value, dict) and not isinstance(value, NewAttributeDict):
-                self[key] = NewAttributeDict(value)
 
     def __setitem__(self, key, value):
         if self.__ro__ is True:
             raise ReadOnlyAttributeError(
                 "%s.%s is read only!" % (self.__class__, key))
-        if isinstance(value, dict) and not isinstance(value, NewAttributeDict):
-            value = NewAttributeDict(value)
-        super(NewAttributeDict, self).__setitem__(key, value)
-
-    '''
-
-    def __getitem__(self, key):
-        value = dict.__getitem__(self, key)
-        return ReadOnlyAttributeDict(value) if isinstance(value, dict) else value
-    '''
+        super(ReadOnlyAttributeDict, self).__setitem__(key, value)
 
     def __getitem__(self, key):
         # if item not found return self.__marker
+        # value = self.get(key, self.__marker__)
         value = self.get(key, None)
-        if isinstance(value, NewAttributeDict):
+        if isinstance(value, ReadOnlyAttributeDict):
             value.__ro__ = self.__ro__
         """
         # get rid of Attribute not found Exception
@@ -259,15 +155,6 @@ class NewAttributeDict(dict):
         return value
 
     __getattr__ = __getitem__
-
-    def __setattr__(self, key, value):
-        if key in dir(dict):
-            raise ReadOnlyAttributeError(
-                "%s.%s is read-only!" % (self.__class__, key))
-        if key in vars(NewAttributeDict):
-            super(NewAttributeDict, self).__setattr__(key, value)
-        else:
-            self.__setitem__(key, value)
 
     def json(self, allow_null=None, params=None):
         return json.dumps(self, cls=JSONEncoder)
