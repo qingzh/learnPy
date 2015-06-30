@@ -5,6 +5,31 @@
 """
 
 import json
+from itertools import chain
+
+
+class SlotsObject(object):
+
+    def dict(self):
+        slots = chain.from_iterable(
+            getattr(cls, '__slots__', []) for cls in self.__class__.__mro__)
+        _dict = {}
+        for key in slots:
+            value = getattr(self, key, None)
+            if hasattr(value, 'dict'):
+                value = value.dict()
+            _dict[key] = value
+        return _dict
+
+    def __str__(self):
+        return json.dumps(self.dict())
+
+
+def _slots_class(name, attributes):
+    '''
+    Solid attributes
+    '''
+    return type(name, (SlotsObject,), {'_params_': attributes, '__slots__': attributes})
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -37,8 +62,7 @@ class PersistentAttributeObject(object):
     __marker__ = object()
 
     def __setitem__(self, key, value):
-        _value = self.get(key, self.__marker__)
-        if _value is self.__marker__:
+        if getattr(self, key, self.__marker__) is self.__marker__:
             raise KeyError(
                 "%s.%s is not exist!" % (self.__class__, key))
         super(PersistentAttributeObject, self).__setitem__(key, value)
@@ -124,8 +148,13 @@ class AttributeDict(dict):
         else:
             self.__setitem__(key, value)
 
-    def json(self, allow_null=None, filter=None):
-        return json.dumps(self, cls=JSONEncoder)
+    def json(self, allow_null=None, filter=None, header=False):
+        '''
+        return json-formated string
+        '''
+        if header is True:
+            return json.dumps('')
+        return json.dumps(self)
 
     @property
     def nodes(self):
