@@ -79,15 +79,15 @@ class AttributeDict(dict):
             # nested object
             if isinstance(value, dict) and not isinstance(value, AttributeDict):
                 # get rid of override '__setattr__'
-                super(AttributeDict, self).__setattr__(
+                super(AttributeDict, self).__setitem__(
                     key, AttributeDict(value))
 
     __getattr__ = dict.__getitem__
 
     def __setitem__(self, key, value):
-        if isinstance(value, dict) and not isinstance(value, self.__class__):
+        if isinstance(value, dict) and not isinstance(value, AttributeDict):
             value = AttributeDict(value)
-        super(self.__class__, self).__setitem__(key, value)
+        super(AttributeDict, self).__setitem__(key, value)
 
     def __setattr__(self, key, value):
         """
@@ -98,6 +98,24 @@ class AttributeDict(dict):
             super(AttributeDict, self).__setattr__(key, value)
         else:
             self.__setitem__(key, value)
+
+    def json(self, allow_null=None, filter=None):
+        return json.dumps(self, cls=JSONEncoder)
+
+    @property
+    def nodes(self):
+        '''
+        get all url paths
+        '''
+        path = []
+        for v in self.itervalues():
+            if isinstance(v, AttributeDict):
+                path.extend(v.nodes)
+            else:
+                path.append(v)
+        return path
+        # return reduce(lambda x, y: x + y, (v.allpath if isinstance(v,
+        # self.__class__) else [v] for v in self.__dict__.viewvalues()))
 
 
 class ReadOnlyAttributeDict(ReadOnlyObject, AttributeDict):
@@ -155,25 +173,6 @@ class ReadOnlyAttributeDict(AttributeDict):
         return value
 
     __getattr__ = __getitem__
-
-    def json(self, allow_null=None, params=None):
-        return json.dumps(self, cls=JSONEncoder)
-
-    @property
-    def nodes(self):
-        '''
-        get all url paths
-        '''
-        path = []
-        print self
-        for v in self.itervalues():
-            if isinstance(v, self.__class__):
-                path.extend(v.nodes)
-            else:
-                path.append(v)
-        return path
-        # return reduce(lambda x, y: x + y, (v.allpath if isinstance(v,
-        # self.__class__) else [v] for v in self.__dict__.viewvalues()))
 
 
 class Namespace(object):
