@@ -24,9 +24,32 @@ class ReadOnlyObject(object):
     def __setitem__(self, key, value):
         raise ReadOnlyAttributeError(
             "%s.%s is read-only!" % (self.__class__, key))
-    __setattr__ = __setitem__
+
+    def __setattr__(self, key, value):
+        if key in dir(self.__class__):
+            super(ReadOnlyObject, self).__setattr__(key, value)
+        else:
+            raise ReadOnlyAttributeError(
+                "%s.%s is read-only!" % (self.__class__, key))
 
 
+class PersistentAttributeObject(object):
+    __marker__ = object()
+
+    def __setitem__(self, key, value):
+        _value = self.get(key, self.__marker__)
+        if _value is self.__marker__:
+            raise KeyError(
+                "%s.%s is not exist!" % (self.__class__, key))
+        super(PersistentAttributeObject, self).__setitem__(key, value)
+
+    def __setattr__(self, key, value):
+        if key in dir(self.__class__):
+            super(ReadOnlyObject, self).__setattr__(key, value)
+        else:
+            PersistentAttributeDict.__setitem__(self, key, value)
+
+'''
 class ReadOnlyAttributeDict(ReadOnlyObject, dict):
 
     def __init__(self, *args, **kwargs):
@@ -39,6 +62,7 @@ class ReadOnlyAttributeDict(ReadOnlyObject, dict):
             if isinstance(value, dict) and not isinstance(value, ReadOnlyAttributeDict):
                 dict.__setitem__(self,
                                  key, ReadOnlyAttributeDict(value))
+'''
 
 
 class AttributeDict(dict):
@@ -77,16 +101,17 @@ class AttributeDict(dict):
         # self.__dict__ = self
         for key, value in self.iteritems():
             # nested object
-            if isinstance(value, dict) and not isinstance(value, AttributeDict):
+            # new object should be instance of self.__class__
+            if isinstance(value, dict) and not isinstance(value, self.__class__):
                 # get rid of override '__setattr__'
                 super(AttributeDict, self).__setitem__(
-                    key, AttributeDict(value))
+                    key, self.__class__(value))
 
     __getattr__ = dict.__getitem__
 
     def __setitem__(self, key, value):
-        if isinstance(value, dict) and not isinstance(value, AttributeDict):
-            value = AttributeDict(value)
+        if isinstance(value, dict) and not isinstance(value, self.__class__):
+            value = self.__class__(value)
         super(AttributeDict, self).__setitem__(key, value)
 
     def __setattr__(self, key, value):
@@ -94,7 +119,7 @@ class AttributeDict(dict):
         字典里不允许存在类默认的属性
         例如：iterkeys, __dict__ 之类
         """
-        if key in dir(AttributeDict):
+        if key in dir(self.__class__):
             super(AttributeDict, self).__setattr__(key, value)
         else:
             self.__setitem__(key, value)
@@ -116,6 +141,32 @@ class AttributeDict(dict):
         return path
         # return reduce(lambda x, y: x + y, (v.allpath if isinstance(v,
         # self.__class__) else [v] for v in self.__dict__.viewvalues()))
+
+
+class PersistentAttributeDict(PersistentAttributeObject, AttributeDict):
+
+    '''
+    attr_dict = {
+                  "a": 1,
+                  "b": {
+                    "c": 3,
+                    "d": {
+                      "e": 5
+                    }
+                  },
+                  "f": None
+                }
+
+    >>> d = PersistentAttributeDict(attr_dict)
+    >>> d.g = 7
+    ReadOnlyAttributeError: <class '__main__.ReadOnlyAttributeDict'>.g is not exist!
+    >>> d.a = [1,2,3]
+    >>> d.b.d.e = 2015
+    {'a': [1, 2, 3], 'b': {'c': 3, 'd': {'e': 2015}}, 'f': None}
+    >>> d.b.d.h = 8
+    ReadOnlyAttributeError: <class '__main__.ReadOnlyAttributeDict'>.h is not exist!
+    '''
+    pass
 
 
 class ReadOnlyAttributeDict(ReadOnlyObject, AttributeDict):
@@ -147,7 +198,7 @@ class ReadOnlyAttributeDict(ReadOnlyObject, AttributeDict):
     '''
     pass
 
-
+'''
 class ReadOnlyAttributeDict(AttributeDict):
     __ro__ = False
     __marker__ = object()
@@ -173,6 +224,7 @@ class ReadOnlyAttributeDict(AttributeDict):
         return value
 
     __getattr__ = __getitem__
+'''
 
 
 class Namespace(object):
