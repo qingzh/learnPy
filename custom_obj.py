@@ -119,7 +119,11 @@ class AttributeDict(dict):
             # new object should be instance of self.__class__
             AttributeDict.__setitem__(self, key, value)
 
-    __getattr__ = dict.__getitem__
+    def __getattr__(self, key):
+        ''' What's the difference vs.
+        __getattr__ = dict.__getitem__
+        '''
+        return super(self.__class__, self).__getitem__(key)
 
     def __setitem__(self, key, value):
         # Nested AttributeDict object
@@ -135,8 +139,18 @@ class AttributeDict(dict):
         if key in dir(self.__class__):
             super(AttributeDict, self).__setattr__(key, value)
         else:
-            # TODO: trap here, `self` or `super`
-            self.__setitem__(key, value)
+            # TODO: trap here? `self` or `super`
+            # What's the difference vs.
+            # self.__setitem__(key, value)
+            AttributeDict.__setitem__(self, key, value)
+
+    def __call__(self, *args, **kwargs):
+        '''
+
+        self.update(...)
+        '''
+        super(AttributeDict, self).update(*args, **kwargs)
+        return self
 
     def json(self, allow_null=None, filter=None, header=False):
         '''
