@@ -6,9 +6,79 @@
 
 import json
 from itertools import chain
+import time
+import sys
+
+SEQUENCE_TYPE = (list, tuple, set)
 
 
-class SlotsObject(object):
+class TT(object):
+    __slots__ = ['ab', 'bc']
+
+
+class ImmutableError(Exception):
+    pass
+
+
+class MyMeta(type):
+
+    @staticmethod
+    def time_method(method):
+        def __wrapper(self, *args, **kwargs):
+            start = time.time()
+            result = method(self, *args, **kwargs)
+            finish = time.time()
+            sys.stdout.write('instancemethod %s took %0.3f s.\n' % (
+                method.__name__, (finish - start)))
+            return result
+        return __wrapper
+
+    def __new__(cls, name, bases, attrs):
+        print 'MyMeta __new__', name
+        for attr in attrs:
+            if attr in ['__init__', 'run']:
+                continue
+            attrs[attr] = cls.time_method(attrs[attr])
+        return super(MyMeta, cls).__new__(cls, name, bases, attrs)
+
+    def __init__(cls, *args, **kwargs):
+        print 'Mymeta __init__', cls
+        print args
+        print kwargs
+
+
+class MyClass0(object):
+    __metaclass__ = MyMeta
+
+    # def __init__(self): pass
+
+    def run(self):
+        sys.stdout.write('running...')
+        return True
+
+
+class MyClass1(MyClass0):
+
+    def run0(self):
+        for i in xrange(1 << 15):
+            a = i / 0.79
+    ''' I need the inherited 'run' to be timed. '''
+
+
+class SlotsMeta(type):
+
+    def __new__(cls, name, bases, attrs):
+        print 'SlotsMeta __new__', name
+        # attrs maybe a list
+        if isinstance(attrs, SEQUENCE_TYPE):
+            attrs = dict.fromkeys(attrs, None)
+        attrs['__slots__'] = tuple(attrs)
+        return super(SlotsMeta, cls).__new__(cls, name, bases, attrs)
+
+
+class SlotsDict(dict):
+
+    __metaclass__ = SlotsMeta
 
     def dict(self):
         slots = chain.from_iterable(
@@ -23,6 +93,21 @@ class SlotsObject(object):
 
     def __str__(self):
         return json.dumps(self.dict())
+
+    def __setitem__(self, key, value):
+        if isinstance(value, dict) and not isinstance(value, self.__class__):
+            value = self.__class__(value)
+        super(AttributeDict, self).__setitem__(key, value)
+
+    def __setattr__(self, key, value):
+        """
+        字典里不允许存在类默认的属性
+        例如：iterkeys, __dict__ 之类
+        """
+        if key in dir(self.__class__):
+            super(AttributeDict, self).__setattr__(key, value)
+        else:
+            self.__setitem__(key, value)
 
 
 def _slots_class(name, attributes):
@@ -122,18 +207,15 @@ class AttributeDict(dict):
         take care of nested dict
         """
         super(AttributeDict, self).__init__(*args, **kwargs)
-        # self.__dict__ = self
         for key, value in self.iteritems():
-            # nested object
+            # Nested AttributeDict object
             # new object should be instance of self.__class__
-            if isinstance(value, dict) and not isinstance(value, self.__class__):
-                # get rid of override '__setattr__'
-                super(AttributeDict, self).__setitem__(
-                    key, self.__class__(value))
+            AttributeDict.__setitem__(self, key, value)
 
     __getattr__ = dict.__getitem__
 
     def __setitem__(self, key, value):
+        # Nested AttributeDict object
         if isinstance(value, dict) and not isinstance(value, self.__class__):
             value = self.__class__(value)
         super(AttributeDict, self).__setitem__(key, value)
@@ -146,6 +228,7 @@ class AttributeDict(dict):
         if key in dir(self.__class__):
             super(AttributeDict, self).__setattr__(key, value)
         else:
+            # TODO: trap here, `self` or `super`
             self.__setitem__(key, value)
 
     def json(self, allow_null=None, filter=None, header=False):
@@ -256,6 +339,44 @@ class ReadOnlyAttributeDict(AttributeDict):
 '''
 
 
+class ImmutableDict(dict):
+
+    def pop(self, key, value=None):
+        raise ImmutableError('Immutable Dict!')
+
+    def popitem(self):
+        raise ImmutableError('Immutable Dict!')
+
+
+class KeyImmutableDict(ImmutableDict, AttributeDict):
+
+    """
+    keys of the dict are immutable
+    value of key is mutable
+    """
+    attr0 = 0
+    attr1 = 1
+
+    def __setattr__(self, key, value):
+        # only defined attributes and items allowed
+        print '__setattr__', key, value
+        if key in self:
+            super(KeyImmutableDict, self).__setitem__(key, value)
+        elif hasattr(self, key):
+            super(KeyImmutableDict, self).__setattr__(key, value)
+        else:
+            raise KeyError("%s.%s is not defined!" % (self.__class__, key))
+
+    __setitem__ = __setattr__
+
+    def update(self, *args, **kwargs):
+        _dict = dict(*args, **kwargs)
+        for key in _dict.iterkeys():
+            if key not in self:
+                raise KeyError("%s.%s is not defined!" % (self.__class__, key))
+        super(KeyImmutableDict, self).update(_dict)
+
+
 class Namespace(object):
 
     def __init__(self, params):
@@ -267,7 +388,7 @@ class Namespace(object):
 
     def __setattr__(self, name, value):
         raise ReadOnlyAttributeError(
-            "%s.%s is read only!" % (self.__class__, name))
+            "%s is read only!" % (self.__class__))
 
     @property
     def allpath(self):
