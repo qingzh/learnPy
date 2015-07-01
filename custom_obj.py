@@ -281,10 +281,10 @@ class KeyImmutableDict(ImmutableDict, AttributeDict):
 
     def update(self, *args, **kwargs):
         _dict = dict(*args, **kwargs)
+        if set(_dict).issubset(self) is False:
+            raise KeyError("Can NOT add key into %s!" % (self.__class__))
         for key in _dict.iterkeys():
-            if key not in self:
-                raise KeyError("%s.%s is not defined!" % (self.__class__, key))
-        super(KeyImmutableDict, self).update(_dict)
+            super(KeyImmutableDict, self).__setitem__(key, _dict[key])
 
 
 class SlotsMeta(type):
