@@ -6,8 +6,6 @@
 
 import json
 from itertools import chain
-import time
-import sys
 
 SEQUENCE_TYPE = (list, tuple, set)
 
@@ -18,103 +16,6 @@ class TT(object):
 
 class ImmutableError(Exception):
     pass
-
-
-class MyMeta(type):
-
-    @staticmethod
-    def time_method(method):
-        def __wrapper(self, *args, **kwargs):
-            start = time.time()
-            result = method(self, *args, **kwargs)
-            finish = time.time()
-            sys.stdout.write('instancemethod %s took %0.3f s.\n' % (
-                method.__name__, (finish - start)))
-            return result
-        return __wrapper
-
-    def __new__(cls, name, bases, attrs):
-        print 'MyMeta __new__', name
-        for attr in attrs:
-            if attr in ['__init__', 'run']:
-                continue
-            attrs[attr] = cls.time_method(attrs[attr])
-        return super(MyMeta, cls).__new__(cls, name, bases, attrs)
-
-    def __init__(cls, *args, **kwargs):
-        print 'Mymeta __init__', cls
-        print args
-        print kwargs
-
-
-class MyClass0(object):
-    __metaclass__ = MyMeta
-
-    # def __init__(self): pass
-
-    def run(self):
-        sys.stdout.write('running...')
-        return True
-
-
-class MyClass1(MyClass0):
-
-    def run0(self):
-        for i in xrange(1 << 15):
-            a = i / 0.79
-    ''' I need the inherited 'run' to be timed. '''
-
-
-class SlotsMeta(type):
-
-    def __new__(cls, name, bases, attrs):
-        print 'SlotsMeta __new__', name
-        # attrs maybe a list
-        if isinstance(attrs, SEQUENCE_TYPE):
-            attrs = dict.fromkeys(attrs, None)
-        attrs['__slots__'] = tuple(attrs)
-        return super(SlotsMeta, cls).__new__(cls, name, bases, attrs)
-
-
-class SlotsDict(dict):
-
-    __metaclass__ = SlotsMeta
-
-    def dict(self):
-        slots = chain.from_iterable(
-            getattr(cls, '__slots__', []) for cls in self.__class__.__mro__)
-        _dict = {}
-        for key in slots:
-            value = getattr(self, key, None)
-            if hasattr(value, 'dict'):
-                value = value.dict()
-            _dict[key] = value
-        return _dict
-
-    def __str__(self):
-        return json.dumps(self.dict())
-
-    def __setitem__(self, key, value):
-        if isinstance(value, dict) and not isinstance(value, self.__class__):
-            value = self.__class__(value)
-        super(AttributeDict, self).__setitem__(key, value)
-
-    def __setattr__(self, key, value):
-        """
-        字典里不允许存在类默认的属性
-        例如：iterkeys, __dict__ 之类
-        """
-        if key in dir(self.__class__):
-            super(AttributeDict, self).__setattr__(key, value)
-        else:
-            self.__setitem__(key, value)
-
-
-def _slots_class(name, attributes):
-    '''
-    Solid attributes
-    '''
-    return type(name, (SlotsObject,), {'_params_': attributes, '__slots__': attributes})
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -157,6 +58,12 @@ class PersistentAttributeObject(object):
             super(ReadOnlyObject, self).__setattr__(key, value)
         else:
             PersistentAttributeDict.__setitem__(self, key, value)
+
+    def __delitem__(self, key):
+        raise ReadOnlyAttributeError(
+            "%s.%s is read-only!" % (self.__class__, key))
+
+    __delattr__ = __delitem__
 
 '''
 class ReadOnlyAttributeDict(ReadOnlyObject, dict):
@@ -235,8 +142,6 @@ class AttributeDict(dict):
         '''
         return json-formated string
         '''
-        if header is True:
-            return json.dumps('')
         return json.dumps(self)
 
     @property
@@ -278,6 +183,7 @@ class PersistentAttributeDict(PersistentAttributeObject, AttributeDict):
     >>> d.b.d.h = 8
     ReadOnlyAttributeError: <class '__main__.ReadOnlyAttributeDict'>.h is not exist!
     '''
+    # Same as KeyImmutableDict possibly
     pass
 
 
@@ -347,6 +253,10 @@ class ImmutableDict(dict):
     def popitem(self):
         raise ImmutableError('Immutable Dict!')
 
+    def __delitem__(self, key):
+        raise ReadOnlyAttributeError(
+            "%s.%s is read-only!" % (self.__class__, key))
+
 
 class KeyImmutableDict(ImmutableDict, AttributeDict):
 
@@ -354,8 +264,8 @@ class KeyImmutableDict(ImmutableDict, AttributeDict):
     keys of the dict are immutable
     value of key is mutable
     """
-    attr0 = 0
-    attr1 = 1
+    # attr0 = 0  # test __getattr__
+    # attr1 = 1
 
     def __setattr__(self, key, value):
         # only defined attributes and items allowed
@@ -375,6 +285,54 @@ class KeyImmutableDict(ImmutableDict, AttributeDict):
             if key not in self:
                 raise KeyError("%s.%s is not defined!" % (self.__class__, key))
         super(KeyImmutableDict, self).update(_dict)
+
+
+class SlotsMeta(type):
+
+    def __new__(cls, name, bases, attrs):
+        print 'SlotsMeta __new__', name
+        # attrs maybe a list
+        if isinstance(attrs, SEQUENCE_TYPE):
+            attrs = dict.fromkeys(attrs, None)
+        attrs['__slots__'] = tuple(attrs)
+        return super(SlotsMeta, cls).__new__(cls, name, bases, attrs)
+
+
+class SlotsDict(KeyImmutableDict):
+
+    def __init__(self, *args, **kwargs):
+        # TODO: not compatible with nested dict
+        _dict = {}
+        for key in self.__slots__:
+            _dict[key] = getattr(self.__class__, key, None)
+        super(SlotsDict, self).__init__(_dict)
+        super(SlotsDict, self).update(*args, **kwargs)
+
+
+def _slots_class(name, attributes):
+    '''
+    Solid attributes
+    '''
+    return SlotsMeta(name, (SlotsDict,), attributes)
+
+
+class OldSlotsDict(AttributeDict):
+
+    __metaclass__ = SlotsMeta
+
+    def dict(self):
+        slots = chain.from_iterable(
+            getattr(cls, '__slots__', []) for cls in self.__class__.__mro__)
+        _dict = {}
+        for key in slots:
+            value = getattr(self, key, None)
+            if hasattr(value, 'dict'):
+                value = value.dict()
+            _dict[key] = value
+        return _dict
+
+    def __str__(self):
+        return json.dumps(self.dict())
 
 
 class Namespace(object):
