@@ -297,8 +297,17 @@ class KeyImmutableDict(ImmutableDict, AttributeDict):
         _dict = dict(*args, **kwargs)
         if set(_dict).issubset(self) is False:
             raise KeyError("Can NOT add key into %s!" % (self.__class__))
-        for key in _dict.iterkeys():
-            super(KeyImmutableDict, self).__setitem__(key, _dict[key])
+        for key, value in _dict.iteritems():
+            super(PersistentAttributeObject, self).__setitem__(key, value)
+
+    def update_existed(self, *args, **kwargs):
+        _dict = dict(*args, **kwargs)
+        for key, value in _dict.iteritems():
+            if key in self:
+                super(PersistentAttributeObject, self).__setitem__(key, value)
+            else:
+                del _dict[key]
+        return _dict.keys()
 
 
 class SlotsMeta(type):
