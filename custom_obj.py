@@ -283,7 +283,7 @@ class KeyImmutableDict(ImmutableDict, AttributeDict):
 
     def __setattr__(self, key, value):
         # only defined attributes and items allowed
-        print '__setattr__', key, value
+        # print '__setattr__', key, value
         if key in self:
             super(KeyImmutableDict, self).__setitem__(key, value)
         elif hasattr(self, key):
@@ -331,6 +331,15 @@ class SlotsDict(KeyImmutableDict):
             _dict[key] = getattr(self.__class__, key, None)
         super(SlotsDict, self).__init__(_dict)
         super(SlotsDict, self).update(*args, **kwargs)
+
+    def __setitem__(self, key, value):
+        if key not in self.__slots__:
+            raise KeyError(
+                "%s.%s is not exist!" % (self.__class__, key))
+        super(SlotsDict, self).__setitem__(key, value)
+        super(SlotsDict, self).__setattr__(key, value)
+
+    __setattr__ = __setitem__
 
 
 def _slots_class(name, attributes):
