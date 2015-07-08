@@ -127,7 +127,7 @@ class AttributeDict(dict):
 
     def __setitem__(self, key, value):
         # Nested AttributeDict object
-        if isinstance(value, dict) and not isinstance(value, self.__class__):
+        if isinstance(value, dict) and not isinstance(value, self.__class__) and issubclass(self.__class__, type(value)):
             value = self.__class__(value)
         super(AttributeDict, self).__setitem__(key, value)
 
@@ -296,7 +296,8 @@ class KeyImmutableDict(ImmutableDict, AttributeDict):
     def update(self, *args, **kwargs):
         _dict = dict(*args, **kwargs)
         if set(_dict).issubset(self) is False:
-            raise KeyError("Can NOT add key into %s!" % (self.__class__))
+            raise KeyError("Can NOT add keys: %s!" %
+                           (set(_dict).difference(self)))
         for key, value in _dict.iteritems():
             super(PersistentAttributeObject, self).__setitem__(key, value)
 
