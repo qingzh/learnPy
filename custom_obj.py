@@ -117,7 +117,15 @@ class AttributeDict(dict):
         for key, value in self.iteritems():
             # Nested AttributeDict object
             # new object should be instance of self.__class__
-            AttributeDict.__setitem__(self, key, value)
+            '''
+            `self.__setitem__` or `Attribute.__setitem__`
+            we don't user self.__setitem__ to get rid of ReadOnlyDict.__setitem__
+
+            2015.7.8.
+            I think there's some trap in not using `super`
+            I suggest we do `super` and override `init` in ReadOnlyDict
+            '''
+            AttributeDict.__setitem__(key, value)
 
     def __getattr__(self, key):
         ''' What's the difference vs.
