@@ -9,7 +9,7 @@ requests.models.json_dumps = json_dump_decorator(json.dumps)
 def response_hook(obj):
     def response_wrapper(response, *args, **kwargs):
         try:
-            response.body = json.loads(response.content, object_hook=obj)
+            response.body = response.json(object_hook=obj)
         except Exception:
             pass
     return response_wrapper
