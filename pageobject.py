@@ -198,7 +198,8 @@ class SelectorContainer(BasePage):
 
 class DateContainer(BasePage):
 
-    header = ContainerElement(By.CLASS_NAME, 'fast-link', ULContainer)
+    header = ContainerElement(
+        By.XPATH, './/div[@class="fast-link"]', ULContainer)
 
 
 class TabContainer(BasePage):
@@ -213,7 +214,7 @@ class TabContainer(BasePage):
         By.XPATH, '//div[contains(@class, "columnWin")]', SelectorContainer)
     date_button = ClickElement(By.XPATH, './/div[@class="fn-dates-picker"]')
     _date_picker = ContainerElement(
-        By.XPATH, './/div[@class="fn-date-container right"]', ULContainer)
+        By.XPATH, './/div[@class="fn-date-container right"]', DateContainer)
     table = ContainerElement(
         By.CSS_SELECTOR, 'table.main-table', TableContainer)
 
@@ -229,6 +230,13 @@ class TabContainer(BasePage):
         element = self._row_title
         if not element.root.is_displayed():
             self.row_button = True
+        return element
+
+    @property
+    def date_picker(self):
+        element = self._date_picker
+        if not element.root.is_displayed():
+            self.date_button = True
         return element
 
 
