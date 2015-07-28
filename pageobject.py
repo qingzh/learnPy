@@ -275,6 +275,14 @@ class BatchUlContainer(BaseContainer):
     delete = AlertElement(By.CSS_SELECTOR, 'li.delete-item')
 
 
+'''
+怎么将NameEditContainer装配成InputElement
+这两个是类似的：
+    NameEditContainer. __set__ 就是设置文本,然后confirm
+    NameEidtContainer. __get__ 就是获取文本
+'''
+
+
 class NameEditContainer(BaseContainer):
     text = InputElement(By.CSS_SELECTOR, 'input.edit_text')
     confirm = InputElement(By.CSS_SELECTOR, 'input.edit_confirm')
@@ -316,8 +324,10 @@ class ListContainer(BaseContainer, list):
         TODO: Initialized with `WebElement` ?
         `self.subobj(WebElement)`
         '''
+        print 'List Container driver.setter'
         self._driver = value
-        items = self._driver.find_elements(By.XPATH, self.subxpath)
+        items = self.root.find_elements(By.XPATH, self.subxpath)
+        print items
         if self.subobj is not None:
             list.__init__(self, (self.subobj(x) for x in items))
         else:
@@ -357,7 +367,7 @@ class DictContainer(BaseContainer, dict):
     @driver.setter
     def driver(self, value):
         self._driver = value
-        items = self._driver.find_elements(
+        items = self.root.find_elements(
             By.XPATH, self.subxpath)
         dict.__init__(self, ((x.text, x) for x in items))
 
@@ -433,6 +443,10 @@ days_editor = ContainerElement(
 
 class TRContainer(BasePage):
 
+    '''
+    怎么将checkbox这个属性变成TRContainer的属性
+    __set__ ?
+    '''
     checkbox = CheckboxElement(By.XPATH, './/input[@type="checkbox"]')
     name = name_editor
     days = days_editor
