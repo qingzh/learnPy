@@ -4,8 +4,11 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 import time
-from selenium.common.exceptions import NoSuchElementException
-from APITest.model.models import _slots_class
+from selenium.common.exceptions import (
+    NoSuchElementException, ElementNotVisibleException)
+from selenium.webdriver.common.action_chains import ActionChains
+
+# from APITest.model.models import _slots_class
 
 
 def displayed_dec(func):
@@ -19,8 +22,8 @@ WebElement.find_elements = displayed_dec(WebElement.find_elements)
 INPUT_TEXT_TYPES = set(('text', 'password'))
 
 
-PageInfo = _slots_class(
-    'PageInfo', ('currentPage', 'level', 'totalPage', 'totalRecord'))
+# PageInfo = _slots_class(
+#    'PageInfo', ('currentPage', 'level', 'totalPage', 'totalRecord'))
 
 
 def _find_input(element):
@@ -82,6 +85,10 @@ class BaseContainer(BasePage):
     def driver(self):
         return self._driver
 
+    @driver.setter
+    def driver(self, value):
+        self._driver = value
+
     @property
     def root(self):
         '''
@@ -90,7 +97,31 @@ class BaseContainer(BasePage):
         if self._root is None:
             self._root = super(BaseContainer, self).root
         if not self._root.is_displayed():
-            self.driver.click()
+            try:
+                self.driver.click()
+            except ElementNotVisibleException:
+                # mouse over `self.driver` element
+                self.driver.find_element(By.XPATH, '..').click()
+                self.driver.click()
+        return self._root
+
+
+class MouseOverMixin(BasePage):
+
+    @property
+    def root(self):
+        '''
+        self.driver: logic parent of self.root
+        '''
+        if self._root is None:
+            self._root = super(BaseContainer, self).root
+        if not self._root.is_displayed():
+            try:
+                self.driver.click()
+            except ElementNotVisibleException:
+                # mouse over `self.driver` element
+                self.driver.find_element(By.XPATH, '..').click()
+                self.driver.click()
         return self._root
 
 
@@ -143,7 +174,7 @@ class CheckboxElement(BasePageElement):
         element.click()
 
 
-class FormElement(BasePageElement)
+class ement(BasePageElement):
     pass
 
 
@@ -245,12 +276,16 @@ class BatchUlContainer(BaseContainer):
 
 
 class NameEditContainer(BaseContainer):
-    text = InputElement(By.XPATH, './/input[@class="edit_text"]')
-    confirm = InputElement(By.XPATH, './/input[@class="edit_confirm"]')
-    cancel = InputElement(By.XPATH, './/input[@class="edit_cancel"]')
+    text = InputElement(By.CSS_SELECTOR, 'input.edit_text')
+    confirm = InputElement(By.CSS_SELECTOR, 'input.edit_confirm')
+    cancel = InputElement(By.CSS_SELECTOR, 'input.edit_cancel')
 
-name_editor = NameEditContainer(
-    None, By.XPATH, '//div[@class="tableOpenWin"]/div[@class="inputBlank"]')
+# 修改名字
+name_editor = ContainerElement(
+    By.XPATH, './/input[@class="edit list-edit name"]',
+    NameEditContainer(
+        None, By.XPATH, '//div[@class="tableOpenWin"]/div[@class="inputBlank"]')
+)
 
 
 class ListContainer(BaseContainer, list):
@@ -270,6 +305,10 @@ class ListContainer(BaseContainer, list):
         super(ListContainer, self).__init__(driver, by, locator)
         self.subxpath = subxpath or './/*[not(*) and text() != ""]'
         self.subobj = subobj
+
+    @property
+    def driver(self):
+        return self._driver
 
     @driver.setter
     def driver(self, value):
@@ -311,6 +350,10 @@ class DictContainer(BaseContainer, dict):
         super(DictContainer, self).__init__(driver, by, locator)
         self.subxpath = subxpath or './/*[not(*) and text() != ""]'
 
+    @property
+    def driver(self):
+        return self._driver
+
     @driver.setter
     def driver(self, value):
         self._driver = value
@@ -348,23 +391,6 @@ class AddPlanContainer(BaseContainer):
         DictContainer, subxpath='./a[@class]')
 
 
-class TRContainer(BasePage):
-
-    checkbox = CheckboxElement(By.XPATH, './/input')
-
-
-class TableContainer(BasePage):
-    header = ContainerElement(By.XPATH, './thead/tr', TRContainer)
-    body = ListElement(By.XPATH, './tbody/tr')
-
-
-class SelectorContainer(BasePage):
-    header = ContainerElement(
-        By.CLASS_NAME, 'select-title', DictContainer, './/li[text() != ""]')
-    content = ContainerElement(
-        By.CLASS_NAME, 'select-content', DictContainer, './/li[*/text() != ""]')
-
-
 class DateContainer(BasePage):
 
     '''
@@ -378,6 +404,50 @@ class DateContainer(BasePage):
         By.XPATH, './/div[@class="fast-link"]', DictContainer)
     start_date = InputElement(By.XPATH, './/input[1]')
     end_date = InputElement(By.XPATH, './/input[2]')
+
+
+class DaysContainer(BaseContainer):
+
+    header = ContainerElement(
+        By.XPATH,
+        './/ul[@class="timeWin-quick-ul"]',
+        DictContainer, subxpath='.//li[@class]'
+    )
+    days = ContainerElement(
+        By.XPATH,
+        './/div[@class="win-c"]',
+        DictContainer, subxpath='.//div[@class="time-data"]'
+    )
+    opts = ContainerElement(
+        By.XPATH,
+        './/div[@class="form-footer"]',
+        DictContainer, subxpath='.//a[@class]'
+    )
+
+# 推广时段
+days_editor = ContainerElement(
+    By.XPATH, './/input[@class="edit list-edit"]',
+    DaysContainer(None, By.XPATH, './/div[@class="editTgsdWin"]')
+)
+
+
+class TRContainer(BasePage):
+
+    checkbox = CheckboxElement(By.XPATH, './/input[@type="checkbox"]')
+    name = name_editor
+    days = days_editor
+
+
+class TableContainer(BasePage):
+    header = ContainerElement(By.XPATH, './thead/tr', TRContainer)
+    body = ListElement(By.XPATH, './tbody/tr')
+
+
+class SelectorContainer(BasePage):
+    header = ContainerElement(
+        By.CLASS_NAME, 'select-title', DictContainer, './/li[text() != ""]')
+    content = ContainerElement(
+        By.CLASS_NAME, 'select-content', DictContainer, './/li[*/text() != ""]')
 
 
 class TabContainer(BasePage):
@@ -429,25 +499,6 @@ class TabContainer(BasePage):
         if not element.root.is_displayed():
             self.date_button = True
         return element
-
-
-class DaysContainer(BaseContainer):
-
-    header = ContainerElement(
-        By.XPATH,
-        './/ul[@class="timeWin-quick-ul"]',
-        DictContainer, subxpath='.//li[@class]'
-    )
-    days = ContainerElement(
-        By.XPATH,
-        './/div[@class="win-c"]',
-        DictContainer, subxpath='.//div[@class="time-data"]'
-    )
-    opts = ContainerElement(
-        By.XPATH,
-        './/div[@class="form-footer"]',
-        DictContainer, subxpath='.//a[@class]'
-    )
 
 
 class LoginPage(BasePage):
