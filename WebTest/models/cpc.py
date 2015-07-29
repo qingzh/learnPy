@@ -21,11 +21,11 @@ from selenium.webdriver.remote.webelement import WebElement
 
 
 class BatchBudgetContainer(BaseContainer):
-	chooses = ListElement(By.XPATH, './/p', InputElement)
-	buttons = ListElement(By.XPATH, './/a[@class]', InputElement)
+    chooses = ListElement(By.XPATH, './/p', InputElement)
+    buttons = ListElement(By.XPATH, './/a[@class]', InputElement)
 
 
-class BatchUlContainer(BaseContainer):
+class BatchContainer(BaseContainer):
 
     suspend = AlertElement(
         By.XPATH, '//li[contains(@class, "stop-promotion")]')
@@ -36,16 +36,22 @@ class BatchUlContainer(BaseContainer):
         By.XPATH, '//li[contains(@class, "modify-budget")]',
         BatchBudgetContainer
     )
+    '''
     price = ContainerElement(
-        By.XPATH, '//li[contains(@class, "modify-price")]')
+        By.XPATH, '//li[contains(@class, "modify-price")]',
+        )
     match_pattern = ClickElement(
         By.XPATH, '//li[contains(@class, "match_pattern")]')
+    '''
     delete = AlertElement(By.CSS_SELECTOR, 'li.delete-item')
 
 
 # 批量操作
+# TODO: 这里需要修改，有些事AlertElement, 不是InputElement
 batch_container = DictContainer(
-    None, By.XPATH, '//div[(@class, "plcz-ul")]', './/li', InputElement)
+    None, By.XPATH, '//div[contains(@class, "plcz-ul")]', './/li/a', InputElement)
+batch_container = BatchContainer(
+    None, By.XPATH, '//div[contains(@class, "plcz-ul")]')
 
 
 # 修改名字
@@ -143,11 +149,14 @@ class DateContainer(BaseContainer):
 
     header = ContainerElement(
         By.XPATH, './/div[@class="fast-link"]', DictContainer)
-    start_date = InputElement(By.XPATH, './/input[1]')
-    end_date = InputElement(By.XPATH, './/input[2]')
+    start_date = InputElement(By.CSS_SELECTOR, 'div.fn-date-left input')
+    end_date = InputElement(By.CSS_SELECTOR, 'div.fn-date-right input')
+    confirm = InputElement(By.CSS_SELECTOR, 'a.confirm-btn')
+    cancel = InputElement(By.CSS_SELECTOR, 'a.close-btn')
+
 
 date_container = DateContainer(
-    None, By.XPATH, './/div[@class="fn-date-container right"]')
+    None, By.XPATH, '//div[@class="fn-date-container right"]')
 
 
 class TRContainer(BaseContainer):
@@ -156,31 +165,58 @@ class TRContainer(BaseContainer):
     怎么将checkbox这个属性变成TRContainer的属性
     __set__ ?
     '''
-    checkbox = CheckboxElement(By.XPATH, './/input[@type="checkbox"]')
+    checkbox = InputElement(By.XPATH, './/input[@type="checkbox"]')
     name = name_editor
     days = days_editor
+
+
+class THContainer(BaseContainer):
+
+    '''
+    怎么将checkbox这个属性变成TRContainer的属性
+    __set__ ?
+    '''
+    checkbox = InputElement(By.XPATH, './/input[@type="checkbox"]')
+    # 名字，可以过滤
+    # 可以排序
+
+status_filter = DictContainer(
+    None, By.XPATH, '//ul[@class="state-win"]', './/li', InputElement)
 
 ##########################################################################
 
 
 class TabHeaderContainer(BaseContainer):
-	# 新增
-	add = ContainerElement(By.ID, 'addBtn', add_plan_container)
+    # 新增
+    add = ContainerElement(By.ID, 'addBtn', add_plan_container)
     # 批量操作
     batch = ContainerElement(By.ID, 'manyDo', batch_container)
     # 自定义列
     row_title = ContainerElement(By.ID, 'definRow', custom_row_container)
     # 选择日期
     date_picker = ContainerElement(
-        By.XPATH, './/div[@class="fn-dates-picker"]', date_container)
+        By.XPATH, './/div[@class="input-append"]', date_container)
     # 过滤状态
-    status_filter = ContainerElement(
+    status = ContainerElement(
         By.CSS_SELECTOR, 'div.state-input input.state-btn', status_filter)
 
 
-class TableContainer(BasePage):
-    thead = ContainerElement(By.XPATH, './/thead/tr', TRContainer)
-    tbody = ListElement(By.XPATH, './/tbody/tr')
+class TableContainer(BaseContainer):
+    thead = ContainerElement(
+        By.XPATH, './/thead/tr', THContainer)
+    tbody = ListElement(
+        By.XPATH, './/tbody/tr[not(@id) or @id!="showAllRecords"]', subobj=TRContainer)
+
+    '''
+    TODO: 
+    这样联动设计导致的后果就是：
+      当调用 .all 的时候 thead会默认被勾上，意即单页全选
+    但是 .all = False 并不会取消单页全选，所以……
+    我搅得，这里有待商榷！
+    '''
+    all = ContainerElement(
+        By.CSS_SELECTOR, 'input.allcheck',
+        InputElement(By.XPATH, '//tr[@id="showAllRecords"]'))
 
 
 class TabContainer(BaseContainer):
@@ -231,11 +267,11 @@ class CPCTabContainer(BaseContainer):
 
 class CPCMainContainer(BaseContainer):
 
-	'''
-	CPC主页面
-	'''
-	# 当前位置
-    position=ContainerElement(
+    '''
+    CPC主页面
+    '''
+    # 当前位置
+    position = ContainerElement(
         By.CSS_SELECTOR, 'div.main-local',
         ListContainer, subxpath='./a[@class]', subobj=InputElement
     )
@@ -248,12 +284,12 @@ class CPCMainContainer(BaseContainer):
     # 当前位置的 信息
     # 例如，当前在账户下，则显示账户信息
     # 		当前在计划下，则显示计划信息
-    info=ContainerElement(
+    info = ContainerElement(
         By.CSS_SELECTOR, 'div.main-info',
         ListContainer, subxpath='./div[@class]', subobj=BaseElement
     )
     # Tab页面
-    main=ContainerElement(
+    main = ContainerElement(
         By.CSS_SELECTOR, 'div.main-nav.head-tab',
         CPCTabContainer
     )
@@ -261,21 +297,21 @@ class CPCMainContainer(BaseContainer):
 
 class HeaderContainer(BaseContainer):
 
-	'''
-	CPC系统页头，应该所有系统都是一致的？
-	'''
-    header=ContainerElement(
+    '''
+    CPC系统页头，应该所有系统都是一致的？
+    '''
+    header = ContainerElement(
         By.XPATH, './/ul[@class="head-nav"]',
-        DictContainer, subxpath='./li[@class]', subobj=InputElement)
+        DictContainer, subxpath='./li/a', subobj=InputElement)
 
 
 class TreeContainer(BaseContainer):
 
-	'''
-	CPC系统左侧树形图
-	'''
-    title=InputElement(By.CSS_SELECTOR, 'div.tree-title')
-    list=ContainerElement(
+    '''
+    CPC系统左侧树形图
+    '''
+    title = InputElement(By.CSS_SELECTOR, 'div.tree-title')
+    list = ContainerElement(
         By.CSS_SELECTOR, 'ul.level1', ListContainer, subxpath='./li', subobj=InputElement)
 
 
@@ -288,11 +324,19 @@ class CPCPage(BasePage):
     #     By.XPATH, '//body//div[@class="head"]', HeaderContainer)
 
     # 页头
-    header=ContainerElement(
+    banner = ContainerElement(
         By.XPATH, '//body//div[@class="head"]', HeaderContainer)
     # 左侧树形图
-    tree=ContainerElement(
+    tree = ContainerElement(
         By.XPATH, './/body//div[@class="body-tree"]', TreeContainer)
     # 中间主页面
-    body=ContainerElement(
+    body = ContainerElement(
         By.CSS_SELECTOR, 'div.body-main-area', CPCMainContainer)
+
+
+class LoginPage(BasePage):
+
+    username = InputElement(By.XPATH, '//input[@id="username"]')
+    password = InputElement(By.XPATH, '//input[@id="password"]')
+    captcha = InputElement(By.XPATH, '//input[@name="captchaResponse"]')
+    submit = InputElement(By.XPATH, '//input[@name="submit"]')

@@ -9,8 +9,12 @@
 
 """
 
-from ..utils import _find_input, _set_input
+from ..utils import *
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.common.exceptions import (
+    NoSuchElementException, ElementNotVisibleException)
+from selenium.webdriver.common.by import By
+from APITest.model.models import _slots_class
 
 ######################################################################
 #  decorate `WebElement.find_elements`
@@ -28,9 +32,13 @@ WebElement.find_elements = displayed_dec(WebElement._find_elements)
 
 ######################################################################
 
-__all__ = ['BaseElement', 'InputElement']
+__all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
+           'DictElemet', 'BasePage', 'ContainerElement', 'BaseContainer',
+           'ListContainer', 'DictContainer', 'PageInfo']
 
 
+PageInfo = _slots_class(
+    'PageInfo', ('currentPage', 'level', 'totalPage', 'totalRecord'))
 ##########################################################################
 #  element 类
 
@@ -51,13 +59,20 @@ class BaseElement(object):
         property `root` is dynamic, it's IMPORTANT
         return WebElement
         '''
+        if isinstance(obj, WebElement):
+            try:
+                item = obj.find_element(self.by, self.locator)
+            except (NoSuchElementException, ElementNotVisibleException):
+                obj.click()
+                item = obj.find_element(self.by, self.locator)
+            return item
         return obj.root.find_element(self.by, self.locator)
 
 
 class InputElement(BaseElement):
 
     def __set__(self, obj, value):
-        item = self.__get__(obj)
+        item = super(InputElement, self).__get__(obj)
         element = _find_input(item) or item
         if element is None:
             raise TypeError("Not `input` element!")
@@ -66,21 +81,45 @@ class InputElement(BaseElement):
 
 class ListElement(BaseElement):
 
-    def __get__(self, obj, value):
-        items = obj.root.find_elements_with_index(self.by, self.locator)
-        return [self._init(self.by, self.locator + '[%d]' % (i + 1)) for i, x in items]
-
     def __init__(self, by, locator, subobj=None):
         '''
         @param subobj: BaseElement or BaseContainer
         '''
         super(ListElement, self).__init__(by, locator)
-        subobj = subobj or BaseElement
-        if issubclass(subobj, BaseElement):
-            self._init = lambda x, y: subobj(x, y)
+        self._subobj = subobj or BaseElement
+
+    def __get__(self, obj, objtype=None):
+        root = obj.root
+        if issubclass(self._subobj, BaseElement):
+            self._init = lambda x, y: self._subobj(x, y)
         else:
-            # 怎么让self.root也变成动态的?
-            self._init = lambda x, y: subobj(self.root, x, y)
+            self._init = lambda x, y: self._subobj(root, x, y)
+        items = root.find_elements_with_index(self.by, self.locator)
+        return [self._init(self.by, '(%s)[%d]' % (self.locator, i + 1)) for i, x in items]
+
+
+class DictElemet(BaseElement):
+
+    def __init__(self, by, locator, subobj=None, key=None):
+        '''
+        @param subobj: BaseElement or BaseContainer
+        '''
+        super(DictElemet, self).__init__(by, locator)
+        self._subobj = subobj or BaseElement
+        self._key = key or (lambda x: x.text)
+
+    def __get__(self, obj, objtype=None):
+        root = obj.root
+        if issubclass(self._subobj, BaseElement):
+            self._init = lambda x, y: self._subobj(x, y)
+        else:
+            self._init = lambda x, y: self._subobj(root, x, y)
+        items = root.find_elements_with_index(self.by, self.locator)
+        return dict(
+            (self._key(x), self._init(
+                self.by, '(%s)[%d]' % (self.locator, i + 1)))
+            for i, x in items
+        )
 
 
 class ContainerElement(BaseElement):
@@ -90,6 +129,13 @@ class ContainerElement(BaseElement):
     现在ContainerElement是允许装配的
     能不能让 Page也允许装配？
 
+    需要注意，如果存在 点击-展现 的行为的话 
+    ContainerElement 的 parent 节点一定要是 click 的！
+
+    挑战：
+    点了 单页 全选，跳出 多页全选
+    多页全选不是隐藏的，是js插入的，所以不能通过判断
+    .is_displayed()判断，而是通过抓住异常 NoSuchElementException
     """
     _container_ = None
 
@@ -115,8 +161,37 @@ class ContainerElement(BaseElement):
         if self._container_ is None:
             self._container_ = self._container_hook_(
                 None, *self._args_, **self._kwargs_)
+        '''
+        如果是 BasePage 则：
+        动态设置 .parent, 返回
+
+        如果是 BaseElement, 则递归：
+        获取 obj.root，返回值
+        '''
+        if hasattr(self._container_, '__get__'):
+            return self._container_.__get__(root)
         self._container_.parent = root
         return self._container_
+
+    def __set__(self, obj, value):
+        '''
+        i如果是 property, 则递归：
+        调用 __set__
+
+        注意，如果是 ContainerElement(DictContainer)
+        这里 __set__ 函数需要修订
+        '''
+        if hasattr(self._container_, '__set__'):
+            root = super(ContainerElement, self).__get__(obj)
+            self._container_.__set__(root, value)
+        # 其它类型的container
+        item = self.__get__(obj)
+        if hasattr(item, '__contains__') and value in item:
+            '''
+            item[value] 调用了 DictContainer 的 __setitem__
+            '''
+            item[value] = True
+        # Do nothing
 
 
 class AlertElement(InputElement):
@@ -136,7 +211,7 @@ class AlertElement(InputElement):
         '''
         return alert instead of `WebElement`
         '''
-        element = super(AlertElement, self).__get__(obj, objtype)
+        element = super(AlertElement, self).__get__(obj)
         element.click()
         return element.parent.switch_to_alert()
 
@@ -254,7 +329,7 @@ class ListContainer(BaseContainer, list):
         list.__init__(
             self,
             (self._init(
-                By.XPATH, self.subxpath + '[%d]' % (i + 1)) for i, x in items)
+                By.XPATH, '(%s)[%d]' % (self.subxpath, i + 1)) for i, x in items)
         )
         # TODO: `BaseContainer` ??
 
@@ -268,7 +343,13 @@ class ListContainer(BaseContainer, list):
     def __setitem__(self, key, value):
         '''
         We assume that item is an `object`
+        需要动态查看是否有 __set__ 方法，然后调用
+        否则只需要 _set_input
         '''
+        item = super(ListContainer, self).__getitem__(key)
+        if hasattr(item, '__set__'):
+            item.__set__(self, value)
+            return
         item = self.__getitem__(key)
         element = _find_input(item) or item
         _set_input(element, value)
@@ -314,9 +395,12 @@ class DictContainer(BaseContainer, dict):
         key: self._key(x), x is the `WebElement` object of node
         value: WebElement
         '''
+        '''
+        在这里用的是初始化，相当于 update 操作
+        '''
         dict.__init__(self, (
             (self._key(x), self._init(
-                By.XPATH, self.subxpath + '[%d]' % (i + 1)))
+                By.XPATH, '(%s)[%d]' % (self.subxpath, i + 1)))
             for i, x in items
         ))
 
@@ -332,6 +416,10 @@ class DictContainer(BaseContainer, dict):
         (True, False, None): click
         (basestring): send_keys
         '''
+        item = super(DictContainer, self).__getitem__(key)
+        if hasattr(item, '__set__'):
+            item.__set__(self, value)
+            return
         item = self.__getitem__(key)
         element = _find_input(item) or item
         _set_input(element, value)
