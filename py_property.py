@@ -37,7 +37,7 @@ class Son(PClass):
         self._root = value
 '''
 
-
+'''
 class PClass(object):
 
     def __init__(self, value):
@@ -55,6 +55,65 @@ class Son(PClass):
         self._root = value
 
     root = property(fget, fset)
+'''
+
+#############################################################
+# List of Property
+
+
+class PClass(object):
+
+    def __init__(self, value):
+        self._abc = value
+
+    def __get__(self, obj, objtype=None):
+        print 'PClass __get__'
+        return self._abc
+
+    def __set__(self, obj, value):
+        print 'PClass __set__'
+        self._abc = value
+
+
+class LClass(list):
+
+    def __init__(self, *args, **kwargs):
+        super(LClass, self).__init__(*args, **kwargs)
+        self.root = object()
+
+    def __getitem__(self, key):
+        item = super(LClass, self).__getitem__(key)
+        if hasattr(item, '__get__'):
+            return item.__get__(self.root, type(self.root))
+        else:
+            return item
+
+    def __setitem__(self, key, value):
+        item = super(LClass, self).__getitem__(key)
+        if hasattr(item, '__get__'):
+            item.__set__(self.root, value)
+        else:
+            super(LClass, self).__setitem__(key, value)
+
+
+l = LClass(PClass(i) for i in range(5))
+
+""" %doctest_mode
+>>> l.extend([1,3])
+>>> l
+[<__main__.PClass object at 0x6fffec3b550>, <__main__.PClass object at 0x6fffec3b590>, <__main__.PClass object at 0x6fffec3b5d0>, <__main__.PClass object at 0x6fffec3b610>, <__main__.PClass object at 0x6fffec3b650>, 1, 3]
+>>> l[5] = 23
+>>> l[3] = 'abc'
+PClass __set__
+>>> l
+[<__main__.PClass object at 0x6fffec3b550>, <__main__.PClass object at 0x6fffec3b590>, <__main__.PClass object at 0x6fffec3b5d0>, <__main__.PClass object at 0x6fffec3b610>, <__main__.PClass object at 0x6fffec3b650>, 23, 3]
+>>> l[1]
+PClass __get__
+1
+>>>
+"""
+
+#############################################################
 
 
 class Property(object):

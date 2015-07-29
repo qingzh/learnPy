@@ -16,6 +16,32 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 
+class C(object):
+
+    @staticmethod
+    def func(n):
+        print 'func', n
+        return n * 2
+
+
+def dec(func):
+    def wrapper(*args, **kwargs):
+        print 'dec'
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def new_dec(func):
+    def wrapper(*args, **kwargs):
+        print 'new dec'
+        return func(*args, **kwargs) * 5
+    return wrapper
+'''
+C.new_func = dec(C.func)
+C.func = new_dec(C.func)
+'''
+
+
 def show_dir(func):
     for i in dir(func):
         if not hasattr(func, i):
