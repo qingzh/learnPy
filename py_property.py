@@ -19,6 +19,11 @@ class Test(object):
         # Do NOT use self.profile(value)
         a.__class__.__dict__['profile'].__set__(self, value)
 
+
+class SubTest(Test):
+
+    profile = Test.profile
+
 '''
 class PClass(object):
 
@@ -94,7 +99,6 @@ class LClass(list):
             item.__set__(self.root, value)
         else:
             super(LClass, self).__setitem__(key, value)
-
 
 l = LClass(PClass(i) for i in range(5))
 

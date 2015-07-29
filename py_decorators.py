@@ -18,8 +18,7 @@ logger.setLevel(logging.DEBUG)
 
 class C(object):
 
-    @staticmethod
-    def func(n):
+    def func(self, n):
         print 'func', n
         return n * 2
 
@@ -36,6 +35,7 @@ def new_dec(func):
         print 'new dec'
         return func(*args, **kwargs) * 5
     return wrapper
+
 '''
 C.new_func = dec(C.func)
 C.func = new_dec(C.func)
