@@ -9,9 +9,19 @@ from selenium.common.exceptions import (
 from selenium.webdriver.common.action_chains import ActionChains
 from APITest.model.models import _slots_class
 from WebTest.models.cpc import LoginPage, CPCPage
-from WebTest.utils import _find_input, _set_input, displayed_dec, index_displayed
+from WebTest.utils import _find_input, _set_input, gen_chinese_unicode
+import random
 
 '''
+######################################################################
+
+TODO:
+   还有一个问题就是，单击之后的寻址是正常的。
+   但是 loading 页面的时候，都是不可点击的。
+   所以要重写click事件，等待页面加载完成
+
+######################################################################
+
 self.parent: 控件的逻辑父节点
 self.root: 控件的根节点，可能和self.parent相同
 
@@ -31,19 +41,6 @@ PageInfo = _slots_class(
 
 ######################################################################
 
-
-######################################################################
-#  decorate `WebElement.find_elements`
-
-if not hasattr(WebElement, '_find_elements'):
-    WebElement._find_elements = WebElement.find_elements
-
-WebElement.find_elements_with_index = index_displayed(
-    WebElement._find_elements)
-
-WebElement.find_elements = displayed_dec(WebElement._find_elements)
-
-######################################################################
 
 # 状态筛选窗口，这是全局唯一的控件
 """
@@ -108,13 +105,89 @@ def batch_resume(driver):
 
 def func(driver):
     cookies = {u'domain': u'e.sm.cn',
- u'expiry': None,
- u'httpOnly': True,
- u'name': u'JSESSIONID',
- u'path': u'/cpc/',
- u'secure': False,
- u'value': u'FC3769042C63D37F9AD1BCD0F07A200B-n1'}
+               u'expiry': None,
+               u'httpOnly': True,
+               u'name': u'JSESSIONID',
+               u'path': u'/cpc/',
+               u'secure': False,
+               u'value': u'FC3769042C63D37F9AD1BCD0F07A200B-n1'}
     driver.get('https://e.sm.cn')
     driver.add_cookie(cookies)
     driver.get('https://e.sm.cn/cpc/')
     return driver
+
+from selenium.webdriver import Chrome
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+
+######################################################################
+#  Crhome Options
+#  获取 performance logging
+#  或者 cr.execute_script('return window.performance.getEntries().slice(i)')
+#       @param i: index of the first element,
+#       @return [i:]
+
+caps = DesiredCapabilities.CHROME
+caps['loggingPrefs'] = {'performance': 'ALL'}
+# cr = Chrome(desired_capabilities=caps)
+
+######################################################################
+
+
+def test_main(driver):
+    login(driver)
+    cpc = CPCPage(driver)
+    # 进入推广管理
+    time.sleep(3)
+    cpc.banner.header = u'推广管理'
+    time.sleep(3)
+    # 测试 Tab 页面
+    tab = cpc.body.main
+    tab.level = u'计划'
+    return driver
+
+
+def edit_single(driver):
+    page = CPCPage(driver)
+    main = page.body.main
+    main.level = u'单元'
+    time.sleep(3)
+    # 显示所有列
+    main.tools.row_title.select_all()
+    # 测试可编辑列
+    tbody = main.table.tbody
+    element = random.choice(tbody)
+    # 编辑名字
+    name = gen_chinese_unicode(30)
+    element.name_editor.set_and_confirm(name)
+    assert element.name.text == name
+
+
+######################################################################
+#  Capture Network Traffic
+#  Start the browser in "proxy-injection mode"
+#   http://stackoverflow.com/questions/3712278/selenium-rc-how-do-you-use-capturenetworktraffic-in-python
+# https://groups.google.com/forum/#!topic/selenium-users/v7rdTChQkbM
+
+"""
+from selenium import webdriver
+from selenium.webdriver.common.proxy import *
+
+myProxy = "host:8080"
+
+proxy = Proxy({
+    'proxyType': ProxyType.MANUAL,
+    'httpProxy': myProxy,
+    'ftpProxy': myProxy,
+    'sslProxy': myProxy,
+    'noProxy': ''  # set this value as desired
+})
+
+driver = webdriver.Firefox(proxy=proxy)
+
+# for remote
+caps = webdriver.DesiredCapabilities.FIREFOX.copy()
+proxy.add_to_capabilities(caps)
+
+driver = webdriver.Remote(desired_capabilities=caps)
+"""
+######################################################################

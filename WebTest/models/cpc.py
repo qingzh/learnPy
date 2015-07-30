@@ -1,14 +1,20 @@
 #! -*- coding:utf8 -*-
 
 from .common import *
-from selenium.webdriver.common.by import By
-from selenium.webdriver.remote.webelement import WebElement
+from ..compat import By, WebElement
+import collections
+
 
 '''
 怎么将NameEditContainer装配成InputElement
 这两个是类似的：
     NameEditContainer. __set__ 就是设置文本,然后confirm
     NameEidtContainer. __get__ 就是获取文本
+
+
+TODO:
+控件的测试，写在控件类里？
+
 '''
 
 
@@ -62,25 +68,44 @@ class NameEditContainer(BaseContainer):
     confirm = InputElement(By.CSS_SELECTOR, 'input.edit_confirm')
     cancel = InputElement(By.CSS_SELECTOR, 'input.edit_cancel')
 
+    def set_and_confirm(self, value):
+        self.text = value
+        self.confirm = True
+
+    def set_and_cancel(self, value):
+        self.text = value
+        self.cancel = True
+
+'''
+让get方法只是获取值
+不单击 input button 
+可以吗
+怎么动态定义?
+单元级别下，可以修改的是unitName，显示的是unitName
+由于每个level只有一个可以编辑的名字
+'''
 name_editor = ContainerElement(
-    By.XPATH, './/input[@class="edit list-edit name"]',
+    By.XPATH, './/td[@name][contains(@class,"editable")]//input[contains(@class, "name")]',
     NameEditContainer(
         None, By.XPATH, '//div[@class="tableOpenWin"]/div[@class="inputBlank"]')
 )
 
+platform_editor = ContainerElement(
+    By.CSS_SELECTOR, 'td[name="platform"] input.edit',
+    DictContainer(
+        None, By.XPATH, '//div[@class="openwin-box"]', subxpath='.//input | .//a',
+        key=lambda x: x.text.strip() or x.find_element(By.XPATH, '..').text.strip())
+)
 
 # 推广时段，列出了7天：周一 ... 周日
+
+
 class DaysContainer(BaseContainer):
 
-    header = ContainerElement(
-        By.XPATH,
-        './/ul[@class="timeWin-quick-ul"]',
-        DictContainer, subxpath='.//li[@class]', subobj=InputElement
-    )
-    days = ContainerElement(
-        By.XPATH,
-        './/div[@class="win-c"]',
-        DictContainer, subxpath='.//div[@class="time-data"]', subobj=InputElement
+    days = DictElement(
+        By.XPATH, './/li[contains(@class,"timeWin-quick-item")] | .//div[contains(@class,"time-data")]/div[@class="timeWin-th"]',
+        subobj=InputElement,
+        key=lambda x: x.text.strip('"')
     )
     opts = ContainerElement(
         By.XPATH,
@@ -88,10 +113,48 @@ class DaysContainer(BaseContainer):
         DictContainer, subxpath='.//a[@class]', subobj=InputElement
     )
 
+    def clear(self):
+        for key in self.days.iterkeys():
+            self.days[key] = False
+
+    def set_and_confirm(self, _list):
+        '''
+        这是一个复选框，未选择的要清除
+        '''
+        # Be aware of `basestring`
+        if not isinstance(_list, collections.MutableSequence):
+            _list = [_list]
+        for i in _list:
+            if i not in self.days:
+                self.days[i] = False
+            else:
+                self.days[i] = True
+        self.opts[u'确定'] = True
+
+    def set(self, _list):
+        '''
+        只进行复选
+        '''
+        if not isinstance(_list, collections.MutableSequence):
+            _list = [_list]
+        for i in _list:
+            if i in self.days:
+                self.days[i] = True
+
+    def get_selected(self, key=None):
+        '''
+        @return list of selected items
+        '''
+        l = []
+        for k in self.days.iterkeys():
+            if self.days[k].is_selected():
+                (key or l.append(k)) and l.append(key(self.days[k]))
+        return l
+
 
 days_editor = ContainerElement(
-    By.XPATH, './/input[@class="edit list-edit"]',
-    DaysContainer(None, By.XPATH, './/div[@class="editTgsdWin"]')
+    By.XPATH, './/td[@name="period"]//input[@type="button"]',
+    DaysContainer(None, By.XPATH, '//div[@class="editTgsdWin"]')
 )
 
 
@@ -119,9 +182,17 @@ add_plan_container = AddPlanContainer(
 # 自定义列，类似自定义区域？
 class SelectorContainer(BaseContainer):
     header = ContainerElement(
-        By.CLASS_NAME, 'select-title', DictContainer, sbuxpath='.//li[text() != ""]')
+        By.CLASS_NAME, 'select-title',
+        DictContainer, subxpath='.//li[text() != ""]', subobj=InputElement)
     content = ContainerElement(
-        By.CLASS_NAME, 'select-content', DictContainer, sbuxpath='.//li[*/text() != ""]')
+        By.CLASS_NAME, 'select-content',
+        DictContainer, subxpath='.//li[*/text() != ""]', subobj=InputElement)
+    confirm = InputElement(By.CSS_SELECTOR, 'a.columnSave')
+    cancel = InputElement(By.CSS_SELECTOR, 'a.columnCancel')
+
+    def select_all(self):
+        self.header[u'全部'] = True
+        self.confirm = True
 
 custom_row_container = SelectorContainer(
     None, By.XPATH, '//div[contains(@class, "columnWin")]')
@@ -166,8 +237,15 @@ class TRContainer(BaseContainer):
     __set__ ?
     '''
     checkbox = InputElement(By.XPATH, './/input[@type="checkbox"]')
-    name = name_editor
-    days = days_editor
+    unitName = BaseElement(By.XPATH, './/td[@name="unitName"]')
+    planName = BaseElement(By.XPATH, './/td[@name="planName"]')
+    status = BaseElement(By.XPATH, './/td[@name="status"]')
+    bid = BaseElement(By.XPATH, './/td[@name="bid"]')
+    negWord = BaseElement(By.XPATH, './/td[@name="negWord"]')
+    platform = BaseContainer(By.XPATH, './/td[@name="platform"]')
+    name_editor = name_editor
+    days_editor = days_editor
+    platform_editor = platform_editor
 
 
 class THContainer(BaseContainer):
@@ -208,31 +286,38 @@ class TableContainer(BaseContainer):
         By.XPATH, './/tbody/tr[not(@id) or @id!="showAllRecords"]', subobj=TRContainer)
 
     '''
-    TODO: 
+    TODO:
     这样联动设计导致的后果就是：
       当调用 .all 的时候 thead会默认被勾上，意即单页全选
     但是 .all = False 并不会取消单页全选，所以……
     我搅得，这里有待商榷！
+
+    TODO:
+       可能不存在 all 选项！
     '''
     all = ContainerElement(
         By.CSS_SELECTOR, 'input.allcheck',
         InputElement(By.XPATH, '//tr[@id="showAllRecords"]'))
 
 
-class TabContainer(BaseContainer):
+"""
+为什么要两层property?
+TODO: refactor
 
-    """
-    为什么要两层property?
-    TODO: refactor
+或者能否保留 ContainerElement 这层的对象?
+"""
 
-    或者能否保留 ContainerElement 这层的对象?
-    意即：
 
-    """
-    __name__ = u'TAB主页面'
+class CPCTabContainer(BaseContainer):
+    # 标签栏：计划，单元，关键词，创意，附加创意
+    level = ContainerElement(
+        By.CSS_SELECTOR, 'ul.main-nav-title',
+        DictContainer, subxpath='./li', subobj=InputElement
+    )
+    # tab主页面
 
     # 页头：批量操作，选择时间，过滤状态灯
-    header = ContainerElement(
+    tools = ContainerElement(
         By.CSS_SELECTOR, 'div.main-nav-head',
         TabHeaderContainer)
 
@@ -244,15 +329,6 @@ class TabContainer(BaseContainer):
     table = ContainerElement(
         By.CSS_SELECTOR, 'div.main-table-area', TableContainer)
 
-
-class CPCTabContainer(BaseContainer):
-    # 标签栏：计划，单元，关键词，创意，附加创意
-    tab = ContainerElement(
-        By.CSS_SELECTOR, 'ul.main-nav-title',
-        DictContainer, subxpath='./li', subobj=InputElement
-    )
-    # tab主页面
-    body = ContainerElement(By.CLASS_NAME, 'main-nav-content', TabContainer)
     # 页数
     numbers = ListElement(By.CSS_SELECTOR, 'li.page-item')
 

@@ -7,33 +7,19 @@
 1. 单击 (选中，不选中，纯点击)
 2. 输入文本
 
+TODO:
+ 将 list dict 变成 iterator 提高性能？
+
 """
 
 from ..utils import *
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.common.exceptions import (
-    NoSuchElementException, ElementNotVisibleException)
-from selenium.webdriver.common.by import By
+from ..compat import (
+    By, WebElement, NoSuchElementException, ElementNotVisibleException)
 from APITest.model.models import _slots_class
 
-######################################################################
-#  decorate `WebElement.find_elements`
-'''
-怎么统一让所有文件都 import 同一个module
-借鉴： requests的做法？
-'''
-if not hasattr(WebElement, '_find_elements'):
-    WebElement._find_elements = WebElement.find_elements
-
-WebElement.find_elements_with_index = index_displayed(
-    WebElement._find_elements)
-
-WebElement.find_elements = displayed_dec(WebElement._find_elements)
-
-######################################################################
 
 __all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
-           'DictElemet', 'BasePage', 'ContainerElement', 'BaseContainer',
+           'DictElement', 'BasePage', 'ContainerElement', 'BaseContainer',
            'ListContainer', 'DictContainer', 'PageInfo']
 
 
@@ -77,49 +63,71 @@ class InputElement(BaseElement):
         if element is None:
             raise TypeError("Not `input` element!")
         _set_input(element, value)
+"""
+TODO:
+  ListElement, DictElement
+  目前 _subxpath 只支持xpath这种形式
+  应为 '(%s)[%d]' 只对xpath生效，对css无效
+
+TODO:
+.parent, .root 的传递
+"""
 
 
-class ListElement(BaseElement):
+class ListMixin(list):
 
-    def __init__(self, by, locator, subobj=None):
-        '''
-        @param subobj: BaseElement or BaseContainer
-        '''
-        super(ListElement, self).__init__(by, locator)
-        self._subobj = subobj or BaseElement
-
-    def __get__(self, obj, objtype=None):
-        root = obj.root
-        if issubclass(self._subobj, BaseElement):
-            self._init = lambda x, y: self._subobj(x, y)
+    def __getitem__(self, key):
+        item = super(ListMixin, self).__getitem__(key)
+        if hasattr(item, '__get__'):
+            return item.__get__(self, type(self))
         else:
-            self._init = lambda x, y: self._subobj(root, x, y)
-        items = root.find_elements_with_index(self.by, self.locator)
-        return [self._init(self.by, '(%s)[%d]' % (self.locator, i + 1)) for i, x in items]
+            return item
 
-
-class DictElemet(BaseElement):
-
-    def __init__(self, by, locator, subobj=None, key=None):
+    def __setitem__(self, key, value):
         '''
-        @param subobj: BaseElement or BaseContainer
+        We assume that item is an `object`
+        需要动态查看是否有 __set__ 方法，然后调用
+        否则只需要 _set_input
         '''
-        super(DictElemet, self).__init__(by, locator)
-        self._subobj = subobj or BaseElement
-        self._key = key or (lambda x: x.text)
+        item = super(ListMixin, self).__getitem__(key)
+        if hasattr(item, '__set__'):
+            item.__set__(self, value)
+            return
+        item = self.__getitem__(key)
+        _find_and_set_input(item)
 
-    def __get__(self, obj, objtype=None):
-        root = obj.root
-        if issubclass(self._subobj, BaseElement):
-            self._init = lambda x, y: self._subobj(x, y)
+    def __iter__(self):
+        return (self.__getitem__(i) for i in xrange(len(self)))
+
+
+class DictMixin(dict):
+
+    def __getitem__(self, key):
+        item = super(DictMixin, self).__getitem__(key)
+        if hasattr(item, '__get__'):
+            return item.__get__(self, type(self))
         else:
-            self._init = lambda x, y: self._subobj(root, x, y)
-        items = root.find_elements_with_index(self.by, self.locator)
-        return dict(
-            (self._key(x), self._init(
-                self.by, '(%s)[%d]' % (self.locator, i + 1)))
-            for i, x in items
-        )
+            return item
+
+    def __setitem__(self, key, value):
+        '''
+        (True, False, None): click
+        (basestring): send_keys
+        '''
+        item = super(DictMixin, self).__getitem__(key)
+        if hasattr(item, '__set__'):
+            item.__set__(self, value)
+            return
+        item = self.__getitem__(key)
+        _find_and_set_input(item)
+
+    def __iter__(self):
+        return (self.__getitem__(i) for i in self.keys())
+
+    def items(self):
+        raise AttributeError("It's a property dict, `.items()` forbidden!")
+
+    iteritems = items
 
 
 class ContainerElement(BaseElement):
@@ -192,6 +200,77 @@ class ContainerElement(BaseElement):
             '''
             item[value] = True
         # Do nothing
+
+
+class ListElement(ContainerElement):
+
+    def __init__(self, by, locator, subobj=None):
+        '''
+        @param subobj: BaseElement or BaseContainer
+        '''
+        subobj = subobj or BaseElement
+        super(ListElement, self).__init__(
+            By.XPATH, '.', ListContainer,
+            subby=by, subxpath=locator, subobj=subobj)
+
+    '''
+    def __get__(self, obj, objtype=None):
+        root = obj.root
+        if issubclass(self._subobj, BaseElement):
+            self._init = lambda x, y: self._subobj(x, y)
+        else:
+            self._init = lambda x, y: self._subobj(root, x, y)
+        items = root.find_elements_with_index(self.by, self.locator)
+        return ListMixin(
+            (self._init(self.by, '(%s)[%d]' %
+                        (self.locator, i + 1)) for i, x in items)
+        )
+    '''
+
+
+class DictElement(ContainerElement):
+
+    """
+    Like DictContainer
+    by: By.XPATH
+    locator: subxpath
+    """
+
+    def __init__(self, by, locator, subobj=None, key=None):
+        '''
+        @param subobj: BaseElement or BaseContainer
+        '''
+        key = key or (lambda x: x.text.strip())
+        subobj = subobj or BaseElement
+        super(DictElement, self).__init__(
+            By.XPATH, '.', DictContainer,
+            subby=by, subxpath=locator, subobj=subobj, key=key)
+
+    """
+    __get__ 返回的是一个字典
+    __getitem__ 应该修改的是返回的字典><
+
+    重构一个Dict类
+
+    应该是一次性生成所有元素，再动态设置root
+    DictElement的subobj也是Property
+
+    # Nested property
+    """
+'''
+    def __get__(self, obj, objtype=None):
+        root = obj.root
+        if issubclass(self._subobj, BaseElement):
+            self._init = lambda x, y: self._subobj(x, y)
+        else:
+            self._init = lambda x, y: self._subobj(root, x, y)
+        items = root.find_elements_with_index(self.by, self.locator)
+        return DictMixin(
+            (self._key(x), self._init(
+                self.by, '(%s)[%d]' % (self.locator, i + 1)))
+            for i, x in items
+        )
+'''
 
 
 class AlertElement(InputElement):
@@ -278,7 +357,7 @@ class BaseContainer(BasePage):
         return self._root
 
 
-class ListContainer(BaseContainer, list):
+class ListContainer(BaseContainer, ListMixin):
 
     '''
     attributes: `parent` and `root`
@@ -288,7 +367,7 @@ class ListContainer(BaseContainer, list):
           以及 __iter__: 用于循环遍历
     '''
 
-    def __init__(self, parent=None, by=None, locator=None, subxpath=None, subobj=None):
+    def __init__(self, parent=None, by=None, locator=None, subby=None, subxpath=None, subobj=None):
         '''
         find all leaf nodes with no-blank displayed text
         element with no child: `*[not(child::*)]` or `*[not(*)]`
@@ -298,7 +377,8 @@ class ListContainer(BaseContainer, list):
         @param subobj: BaseElement or BaseContainer
         '''
         super(ListContainer, self).__init__(parent, by, locator)
-        self.subxpath = subxpath or './/*[not(*) and text() != ""]'
+        self._subby = subby or By.XPATH
+        self._subxpath = subxpath or './/*[not(*) and text() != ""]'
         subobj = subobj or BaseElement
         if issubclass(subobj, BaseElement):
             self._init = lambda x, y: subobj(x, y)
@@ -317,7 +397,7 @@ class ListContainer(BaseContainer, list):
         `self.subobj(WebElement)`
         '''
         self._parent = value
-        items = self.root.find_elements_with_index(By.XPATH, self.subxpath)
+        items = self.root.find_elements_with_index(self._subby, self._subxpath)
         # 这里也需要动态配置
         # 否则刷新页面页面之后，就会报错
         # 比如，测试页头的几个链接，页头的元素xpath不会变化
@@ -329,43 +409,30 @@ class ListContainer(BaseContainer, list):
         list.__init__(
             self,
             (self._init(
-                By.XPATH, '(%s)[%d]' % (self.subxpath, i + 1)) for i, x in items)
+                self._subby, '(%s)[%d]' % (self._subxpath, i + 1)) for i, x in items)
         )
         # TODO: `BaseContainer` ??
 
-    def __getitem__(self, key):
-        item = super(ListContainer, self).__getitem__(key)
-        if hasattr(item, '__get__'):
-            return item.__get__(self, type(self))
-        else:
-            return item
+'''
 
-    def __setitem__(self, key, value):
-        '''
-        We assume that item is an `object`
-        需要动态查看是否有 __set__ 方法，然后调用
-        否则只需要 _set_input
-        '''
-        item = super(ListContainer, self).__getitem__(key)
-        if hasattr(item, '__set__'):
-            item.__set__(self, value)
-            return
-        item = self.__getitem__(key)
-        element = _find_input(item) or item
-        _set_input(element, value)
+怎么实现 .items, .iteritems() 并实现赋值
+对于 items() 操作，实际上取出来的是property
+但是已经无法获得关联的obj，所以...？
+再给 BaseElement 动态分配一个root？ 不可能。
 
-    def __iter__(self):
-        return (self.__getitem__(i) for i in xrange(len(self)))
+禁掉这俩功能>< items...
+
+'''
 
 
-class DictContainer(BaseContainer, dict):
+class DictContainer(BaseContainer, DictMixin):
 
     '''
     attributes: `parent` and `root`
     do Initialization of dict when set `parent`
     '''
 
-    def __init__(self, parent=None, by=None, locator=None, subxpath=None, subobj=None, key=None):
+    def __init__(self, parent=None, by=None, locator=None, subby=None, subxpath=None, subobj=None, key=None):
         '''
         find all leaf nodes with no-blank displayed text
         element with no child: `*[not(child::*)]` or `*[not(*)]`
@@ -373,14 +440,15 @@ class DictContainer(BaseContainer, dict):
         `*` means "selectes all element children of the context node"
         '''
         super(DictContainer, self).__init__(parent, by, locator)
-        self.subxpath = subxpath or './/*[not(*) and text() != ""]'
+        self._subby = subby or By.XPATH
+        self._subxpath = subxpath or './/*[not(*) and text() != ""]'
         subobj = subobj or BaseElement
         if issubclass(subobj, BaseElement):
             self._init = lambda x, y: subobj(x, y)
         else:
             # 怎么让self.root也变成动态的?
             self._init = lambda x, y: subobj(self.root, x, y)
-        self._key = key or (lambda x: x.text)
+        self._key = key or (lambda x: x.text.strip())
 
     @property
     def parent(self):
@@ -389,7 +457,7 @@ class DictContainer(BaseContainer, dict):
     @parent.setter
     def parent(self, value):
         self._parent = value
-        items = self.root.find_elements_with_index(By.XPATH, self.subxpath)
+        items = self.root.find_elements_with_index(self._subby, self._subxpath)
         '''
         初始化
         key: self._key(x), x is the `WebElement` object of node
@@ -400,32 +468,10 @@ class DictContainer(BaseContainer, dict):
         '''
         dict.__init__(self, (
             (self._key(x), self._init(
-                By.XPATH, '(%s)[%d]' % (self.subxpath, i + 1)))
+                self._subby, '(%s)[%d]' % (self._subxpath, i + 1)))
             for i, x in items
         ))
 
-    def __getitem__(self, key):
-        item = super(DictContainer, self).__getitem__(key)
-        if hasattr(item, '__get__'):
-            return item.__get__(self, type(self))
-        else:
-            return item
-
-    def __setitem__(self, key, value):
-        '''
-        (True, False, None): click
-        (basestring): send_keys
-        '''
-        item = super(DictContainer, self).__getitem__(key)
-        if hasattr(item, '__set__'):
-            item.__set__(self, value)
-            return
-        item = self.__getitem__(key)
-        element = _find_input(item) or item
-        _set_input(element, value)
-
-    def __iter__(self):
-        return (self.__getitem__(i) for i in self.keys())
 
 ##########################################################################
 #   其他
