@@ -63,7 +63,7 @@ batch_container = BatchContainer(
 # 修改名字
 
 
-class NameEditContainer(BaseContainer):
+class TextEditContainer(BaseContainer):
     text = InputElement(By.CSS_SELECTOR, 'input.edit_text')
     confirm = InputElement(By.CSS_SELECTOR, 'input.edit_confirm')
     cancel = InputElement(By.CSS_SELECTOR, 'input.edit_cancel')
@@ -86,7 +86,13 @@ class NameEditContainer(BaseContainer):
 '''
 name_editor = ContainerElement(
     By.XPATH, './/td[@name][contains(@class,"editable")]//input[contains(@class, "name")]',
-    NameEditContainer(
+    TextEditContainer(
+        None, By.XPATH, '//div[@class="tableOpenWin"]/div[@class="inputBlank"]')
+)
+
+budget_editor = ContainerElement(
+    By.XPATH, './/td[@name="bid" or @name="budget"]//input',
+    TextEditContainer(
         None, By.XPATH, '//div[@class="tableOpenWin"]/div[@class="inputBlank"]')
 )
 
@@ -96,6 +102,8 @@ platform_editor = ContainerElement(
         None, By.XPATH, '//div[@class="openwin-box"]', subxpath='.//input | .//a',
         key=lambda x: x.text.strip() or x.find_element(By.XPATH, '..').text.strip())
 )
+
+status_editor = 
 
 # 推广时段，列出了7天：周一 ... 周日
 
@@ -246,6 +254,7 @@ class TRContainer(BaseContainer):
     name_editor = name_editor
     days_editor = days_editor
     platform_editor = platform_editor
+    budget_editor = budget_editor
 
 
 class THContainer(BaseContainer):

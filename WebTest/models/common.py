@@ -25,6 +25,19 @@ __all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
 
 PageInfo = _slots_class(
     'PageInfo', ('currentPage', 'level', 'totalPage', 'totalRecord'))
+
+##########################################################################
+#  Timing Decorator
+
+'''
+# 获取 Chrome 提供的 HTML5 Performance Timing 对象
+entries = AttributeDict(driver.execute_script('return window.performance.getEntries()'))
+for entry in entries:
+    if entry.name.index(pattern):
+        duration = entry.requestStart - entry.responseStart
+'''
+
+
 ##########################################################################
 #  element 类
 
@@ -63,6 +76,33 @@ class InputElement(BaseElement):
         if element is None:
             raise TypeError("Not `input` element!")
         _set_input(element, value)
+
+
+class StatusElement(BaseElement):
+
+    def __init__(self, by, locator, key, key_map):
+        '''
+        key: the value of the WebElement
+
+        key_map = {
+            u'暂停': 'pause'
+            u'恢复': 'run'
+        }
+
+        key = lamda x: x.get_attribute('class').rpartition(' ')[-1]
+        '''
+        self.by = by
+        self.locator = locator
+        sef._key = key
+        self._map = key_map
+
+    def __set__(self, obj, value):
+        if value not in self._map:
+            raise Exception('Status is not supported!')
+        item = super(InputElement, self).__get__(obj)
+        status = self._map[value]
+        while status != self._key(item):
+            item.click()
 """
 TODO:
   ListElement, DictElement

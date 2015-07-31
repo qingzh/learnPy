@@ -110,10 +110,10 @@ def func(driver):
                u'name': u'JSESSIONID',
                u'path': u'/cpc/',
                u'secure': False,
-               u'value': u'FC3769042C63D37F9AD1BCD0F07A200B-n1'}
+               u'value': u'24FBD20936B60AB6B712197BC2DF73D3-n1'}
     driver.get('https://e.sm.cn')
     driver.add_cookie(cookies)
-    driver.get('https://e.sm.cn/cpc/')
+    driver.get('https://e.sm.cn/cpc/adManagement')
     return driver
 
 from selenium.webdriver import Chrome
@@ -159,7 +159,7 @@ def edit_single(driver):
     # 编辑名字
     name = gen_chinese_unicode(30)
     element.name_editor.set_and_confirm(name)
-    assert element.name.text == name
+    assert element.unitName.text == name
 
 
 ######################################################################
