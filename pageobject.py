@@ -57,7 +57,7 @@ assert .keys() == 以上 >,<...
 """
 
 
-url = 'http://42.120.168.74'
+url = 'http://42.120.168.65/'
 
 
 def login(driver, username='ShenmaPM2.5', password='pd123456'):

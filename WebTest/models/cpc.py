@@ -15,6 +15,9 @@ import collections
 TODO:
 控件的测试，写在控件类里？
 
+TODO:
+Nested Element??
+
 '''
 
 
@@ -78,7 +81,7 @@ class TextEditContainer(BaseContainer):
 
 '''
 让get方法只是获取值
-不单击 input button 
+不单击 input button
 可以吗
 怎么动态定义?
 单元级别下，可以修改的是unitName，显示的是unitName
@@ -103,7 +106,10 @@ platform_editor = ContainerElement(
         key=lambda x: x.text.strip() or x.find_element(By.XPATH, '..').text.strip())
 )
 
-status_editor = 
+status_editor = StatusElement(
+    By.CSS_SELECTOR, 'span.icon-state',
+    key=lambda x: x.get_attribute('class').rpartition(' ')[-1],
+    key_map={u'暂停': 'pause', u'恢复': 'run'})
 
 # 推广时段，列出了7天：周一 ... 周日
 
@@ -183,8 +189,39 @@ class AddPlanContainer(BaseContainer):
         By.XPATH, './/div[@class="form-footer form-bottom-big"]',
         DictContainer, subxpath='./a[@class]')
 
+
+# 单元
+class AddUnitContainer(BaseContainer):
+
+    '''
+    新增计划的Form类
+    '''
+    '''
+    plan这里，因为对find_elements做了过滤，只显示is_displayed的…… 
+    所以只用WebElement.find_elements有问题
+    '''
+    plan = ContainerElement(
+        By.TAG_NAME, 'select',
+        DictContainer, subxpath='./option', subobj=InputElement
+    )
+    name = InputElement(
+        By.XPATH, './/input[@id="unitName"]')
+    # `radio`
+    unitBid = InputElement(
+        By.XPATH, './/input[@id="unitBid"]')
+    platform = ContainerElement(
+        By.CSS_SELECTOR, 'p.addUnitForm-row',
+        DictContainer, subxpath='./input',
+        key=lambda x: x.text.strip() or x.find_element(By.XPATH, '..').text.strip())
+    opts = ContainerElement(
+        By.CSS_SELECTOR, 'div.form-footer',
+        DictContainer, subxpath='./a[@class]', subobj=InputElement)
+
 add_plan_container = AddPlanContainer(
     None, By.XPATH, '//div[@class="addPlanWin"]')
+
+add_unit_container = AddUnitContainer(
+    None, By.XPATH, '//div[@class="addUnitWin"]')
 
 
 # 自定义列，类似自定义区域？
@@ -273,9 +310,42 @@ status_filter = DictContainer(
 ##########################################################################
 
 
+class DynamicContainerElement(ContainerElement):
+
+    def __init__(self, by, locator, obj, *args, **kwargs):
+        '''
+        obj is a function: func(WebElement)
+        return target container object type
+        '''
+        # 注意，`super` 这里是ContainerElemeng, 不是 DynamicContainerElement
+        super(ContainerElement, self).__init__(by, locator)
+        self._obj_func = obj
+        self._args_ = args
+        self._kwargs_ = kwargs
+
+    def __get__(self, obj, objtype=None):
+        # 注意，`super` 这里是ContainerElemeng, 不是 DynamicContainerElement
+        root = super(ContainerElement, self).__get__(obj, objtype)
+        obj_hook = self._obj_func(root)
+        if type(obj_hook) is type:
+            self._container_ = obj_hook(root, *self._args_, **self._kwargs_)
+        else:
+            self._container_ = obj_hook
+        if hasattr(self._container_, '__get__'):
+            return self._container_.__get__(root)
+        self._container_.parent = root
+        return self._container_
+
+
 class TabHeaderContainer(BaseContainer):
+    _add_dict = {
+        u'添加单元': add_unit_container,
+        u'添加计划': add_plan_container,
+    }
     # 新增
-    add = ContainerElement(By.ID, 'addBtn', add_plan_container)
+    add = DynamicContainerElement(
+        By.ID, 'addBtn',
+        obj=lambda x: TabHeaderContainer._add_dict.get(x.text))
     # 批量操作
     batch = ContainerElement(By.ID, 'manyDo', batch_container)
     # 自定义列
@@ -308,6 +378,7 @@ class TableContainer(BaseContainer):
         By.CSS_SELECTOR, 'input.allcheck',
         InputElement(By.XPATH, '//tr[@id="showAllRecords"]'))
 
+##########################################################################
 
 """
 为什么要两层property?

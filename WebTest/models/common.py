@@ -20,7 +20,7 @@ from APITest.model.models import _slots_class
 
 __all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
            'DictElement', 'BasePage', 'ContainerElement', 'BaseContainer',
-           'ListContainer', 'DictContainer', 'PageInfo']
+           'ListContainer', 'DictContainer', 'PageInfo', 'StatusElement']
 
 
 PageInfo = _slots_class(
@@ -78,28 +78,39 @@ class InputElement(BaseElement):
         _set_input(element, value)
 
 
+"""
+由于key_map的存在
+是否可以复用DictContainer??
+    修改 __set__ 方法
+"""
+
+
 class StatusElement(BaseElement):
+
+    '''
+    轮选
+    '''
 
     def __init__(self, by, locator, key, key_map):
         '''
         key: the value of the WebElement
 
         key_map = {
-            u'暂停': 'pause'
+            u'暂停': 'pause',
             u'恢复': 'run'
         }
 
-        key = lamda x: x.get_attribute('class').rpartition(' ')[-1]
+        key = lambda x: x.get_attribute('class').rpartition(' ')[-1]
         '''
         self.by = by
         self.locator = locator
-        sef._key = key
+        self._key = key
         self._map = key_map
 
     def __set__(self, obj, value):
         if value not in self._map:
             raise Exception('Status is not supported!')
-        item = super(InputElement, self).__get__(obj)
+        item = super(StatusElement, self).__get__(obj)
         status = self._map[value]
         while status != self._key(item):
             item.click()
@@ -192,6 +203,7 @@ class ContainerElement(BaseElement):
         by
         locator
         obj: container hook
+        `args, kwargs` works only if `type(obj) is type`
         '''
         super(ContainerElement, self).__init__(by, locator)
         if type(obj) is type:
@@ -419,12 +431,7 @@ class ListContainer(BaseContainer, ListMixin):
         super(ListContainer, self).__init__(parent, by, locator)
         self._subby = subby or By.XPATH
         self._subxpath = subxpath or './/*[not(*) and text() != ""]'
-        subobj = subobj or BaseElement
-        if issubclass(subobj, BaseElement):
-            self._init = lambda x, y: subobj(x, y)
-        else:
-            # 怎么让self.root也变成动态的?
-            self._init = lambda x, y: subobj(self.root, x, y)
+        self._subobj = subobj or BaseElement
 
     @property
     def parent(self):
@@ -437,7 +444,12 @@ class ListContainer(BaseContainer, ListMixin):
         `self.subobj(WebElement)`
         '''
         self._parent = value
-        items = self.root.find_elements_with_index(self._subby, self._subxpath)
+        root = self.root
+        if issubclass(self._subobj, BaseElement):
+            init = lambda x, y: self._subobj(x, y)
+        else:
+            init = lambda x, y: self._subobj(root, x, y)
+        items = root.find_elements_with_index(self._subby, self._subxpath)
         # 这里也需要动态配置
         # 否则刷新页面页面之后，就会报错
         # 比如，测试页头的几个链接，页头的元素xpath不会变化
@@ -448,7 +460,7 @@ class ListContainer(BaseContainer, ListMixin):
         # 怎么让subxpath去匹配显示的item
         list.__init__(
             self,
-            (self._init(
+            (init(
                 self._subby, '(%s)[%d]' % (self._subxpath, i + 1)) for i, x in items)
         )
         # TODO: `BaseContainer` ??
@@ -482,12 +494,7 @@ class DictContainer(BaseContainer, DictMixin):
         super(DictContainer, self).__init__(parent, by, locator)
         self._subby = subby or By.XPATH
         self._subxpath = subxpath or './/*[not(*) and text() != ""]'
-        subobj = subobj or BaseElement
-        if issubclass(subobj, BaseElement):
-            self._init = lambda x, y: subobj(x, y)
-        else:
-            # 怎么让self.root也变成动态的?
-            self._init = lambda x, y: subobj(self.root, x, y)
+        self._subobj = subobj or BaseElement
         self._key = key or (lambda x: x.text.strip())
 
     @property
@@ -497,7 +504,12 @@ class DictContainer(BaseContainer, DictMixin):
     @parent.setter
     def parent(self, value):
         self._parent = value
-        items = self.root.find_elements_with_index(self._subby, self._subxpath)
+        root = self.root
+        if issubclass(self._subobj, BaseElement):
+            init = lambda x, y: self._subobj(x, y)
+        else:
+            init = lambda x, y: self._subobj(root, x, y)
+        items = root.find_elements_with_index(self._subby, self._subxpath)
         '''
         初始化
         key: self._key(x), x is the `WebElement` object of node
@@ -507,7 +519,7 @@ class DictContainer(BaseContainer, DictMixin):
         在这里用的是初始化，相当于 update 操作
         '''
         dict.__init__(self, (
-            (self._key(x), self._init(
+            (self._key(x), init(
                 self._subby, '(%s)[%d]' % (self._subxpath, i + 1)))
             for i, x in items
         ))
