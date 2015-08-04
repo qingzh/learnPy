@@ -116,7 +116,7 @@ def func(driver):
     driver.get('https://e.sm.cn/cpc/adManagement')
     return driver
 
-from selenium.webdriver import Chrome
+from selenium.webdriver import Chrome, Firefox
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 ######################################################################

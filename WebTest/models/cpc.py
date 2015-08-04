@@ -202,7 +202,8 @@ class AddUnitContainer(BaseContainer):
     '''
     plan = ContainerElement(
         By.TAG_NAME, 'select',
-        DictContainer, subxpath='./option', subobj=InputElement
+        DictContainer(
+            None, By.XPATH, '.', subxpath='./option', subobj=InputElement)
     )
     name = InputElement(
         By.XPATH, './/input[@id="unitName"]')
@@ -302,6 +303,13 @@ class THContainer(BaseContainer):
     '''
     checkbox = InputElement(By.XPATH, './/input[@type="checkbox"]')
     # 名字，可以过滤
+    filter = DictElement(
+        By.XPATH, './/a[contains(@class, "filter")]',
+        subobj=InputElement, key=lambda x: x.find_element(By.XPATH, '..').text)
+
+    order = DictElement(
+        By.XPATH, './/span[contains(@class, "order")]',
+        subobj=InputElement, key=lambda x: x.find_element(By.XPATH, '..').text)
     # 可以排序
 
 status_filter = DictContainer(

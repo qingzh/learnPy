@@ -119,10 +119,16 @@ TODO:
   ListElement, DictElement
   目前 _subxpath 只支持xpath这种形式
   应为 '(%s)[%d]' 只对xpath生效，对css无效
+  css为 ' :eq(%d)'
 
 TODO:
 .parent, .root 的传递
 """
+
+_selector_dict = {
+    By.XPATH: '(%s)[%d]',
+    By.CSS_SELECTOR: '%s:eq(%d)',
+}
 
 
 class ListMixin(list):
@@ -419,7 +425,7 @@ class ListContainer(BaseContainer, ListMixin):
           以及 __iter__: 用于循环遍历
     '''
 
-    def __init__(self, parent=None, by=None, locator=None, subby=None, subxpath=None, subobj=None):
+    def __init__(self, parent=None, by=None, locator=None, subby=None, subxpath=None, subobj=None, visible=True):
         '''
         find all leaf nodes with no-blank displayed text
         element with no child: `*[not(child::*)]` or `*[not(*)]`
@@ -432,6 +438,7 @@ class ListContainer(BaseContainer, ListMixin):
         self._subby = subby or By.XPATH
         self._subxpath = subxpath or './/*[not(*) and text() != ""]'
         self._subobj = subobj or BaseElement
+        self._visible = visible
 
     @property
     def parent(self):
@@ -449,7 +456,7 @@ class ListContainer(BaseContainer, ListMixin):
             init = lambda x, y: self._subobj(x, y)
         else:
             init = lambda x, y: self._subobj(root, x, y)
-        items = root.find_elements_with_index(self._subby, self._subxpath)
+        items = root.find_elements_with_index(self._subby, self._subxpath, self._visible)
         # 这里也需要动态配置
         # 否则刷新页面页面之后，就会报错
         # 比如，测试页头的几个链接，页头的元素xpath不会变化
@@ -461,7 +468,7 @@ class ListContainer(BaseContainer, ListMixin):
         list.__init__(
             self,
             (init(
-                self._subby, '(%s)[%d]' % (self._subxpath, i + 1)) for i, x in items)
+                self._subby, _selector_dict[self.subby] % (self._subxpath, i + 1)) for i, x in items)
         )
         # TODO: `BaseContainer` ??
 
@@ -520,7 +527,7 @@ class DictContainer(BaseContainer, DictMixin):
         '''
         dict.__init__(self, (
             (self._key(x), init(
-                self._subby, '(%s)[%d]' % (self._subxpath, i + 1)))
+                self._subby, _selector_dict[self.subby] % (self._subxpath, i + 1)))
             for i, x in items
         ))
 

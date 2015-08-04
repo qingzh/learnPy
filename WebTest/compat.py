@@ -13,6 +13,8 @@ from selenium.webdriver.common.by import By
 def displayed_dec(func):
     def wrapper(*args, **kwargs):
         items = func(*args, **kwargs)
+        if kwargs.get('visible', True) is False:
+            return items
         return filter(lambda x: x.is_displayed() and x.size['height'] * x.size['width'], items)
     return wrapper
 
