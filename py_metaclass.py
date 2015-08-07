@@ -2,6 +2,25 @@ import time
 import sys
 
 
+class C(object):
+
+    def __init__(self, s):
+        self.s = s
+
+
+class A(object):
+    root = '123'
+
+    def __init__(self, c):
+        self.c = c
+"""
+>>> A.root
+123
+>>> a = A(C(a.root))
+AttributeError: 'A' object has no attribute 'root'
+"""
+
+
 class MyMeta(type):
 
     @staticmethod
@@ -43,3 +62,10 @@ class MyClass1(MyClass0):
         for i in xrange(1 << 15):
             a = i / 0.79
     ''' I need the inherited 'run' to be timed. '''
+
+'''
+Read More:
+
+1. http://www.voidspace.org.uk/python/articles/metaclasses.shtml
+
+'''
