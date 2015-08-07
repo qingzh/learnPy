@@ -176,7 +176,7 @@ class DictMixin(dict):
             item.__set__(self, value)
             return
         item = self.__getitem__(key)
-        _find_and_set_input(item)
+        _find_and_set_input(item, value)
 
     def __iter__(self):
         return (self.__getitem__(i) for i in self.keys())
@@ -190,9 +190,10 @@ class DictMixin(dict):
 class ContainerElement(BaseElement):
 
     """
-    # TODO
-    现在ContainerElement是允许装配的
-    能不能让 Page也允许装配？
+    TODO
+    1. 现在ContainerElement是允许装配的
+       能不能让 Page也允许装配？
+    2. Nested ContainerElement?
 
     需要注意，如果存在 点击-展现 的行为的话 
     ContainerElement 的 parent 节点一定要是 click 的！
@@ -398,20 +399,27 @@ class BaseContainer(BasePage):
     def parent(self, value):
         self._parent = value
 
+    def click_parent(self):
+        try:
+            self.parent.click()
+        except ElementNotVisibleException:
+            # mouse over `self.parent` element
+            self.parent.find_element(By.XPATH, '..').click()
+            self.parent.click()
+
     @property
     def root(self):
         '''
         动态取得 root 节点
         self.parent: logic parent of self.root
         '''
-        self._root = super(BaseContainer, self).root
+        try:
+            self._root = super(BaseContainer, self).root
+        except NoSuchElementException:
+            self.click_parent()
+            self._root = super(BaseContainer, self).root
         if not self._root.is_displayed():
-            try:
-                self.parent.click()
-            except ElementNotVisibleException:
-                # mouse over `self.parent` element
-                self.parent.find_element(By.XPATH, '..').click()
-                self.parent.click()
+            self.click_parent()
         return self._root
 
 
@@ -456,7 +464,8 @@ class ListContainer(BaseContainer, ListMixin):
             init = lambda x, y: self._subobj(x, y)
         else:
             init = lambda x, y: self._subobj(root, x, y)
-        items = root.find_elements_with_index(self._subby, self._subxpath, self._visible)
+        items = root.find_elements_with_index(
+            self._subby, self._subxpath, self._visible)
         # 这里也需要动态配置
         # 否则刷新页面页面之后，就会报错
         # 比如，测试页头的几个链接，页头的元素xpath不会变化
@@ -468,7 +477,7 @@ class ListContainer(BaseContainer, ListMixin):
         list.__init__(
             self,
             (init(
-                self._subby, _selector_dict[self.subby] % (self._subxpath, i + 1)) for i, x in items)
+                self._subby, _selector_dict[self._subby] % (self._subxpath, i + 1)) for i, x in items)
         )
         # TODO: `BaseContainer` ??
 
@@ -497,6 +506,10 @@ class DictContainer(BaseContainer, DictMixin):
         element with no child: `*[not(child::*)]` or `*[not(*)]`
         `not(*)` means "does not have any element child"
         `*` means "selectes all element children of the context node"
+        subobj 必须是 class? 如果是 instance 呢？
+
+        TODO: 
+            subobj 是一个 class property
         '''
         super(DictContainer, self).__init__(parent, by, locator)
         self._subby = subby or By.XPATH
@@ -512,7 +525,15 @@ class DictContainer(BaseContainer, DictMixin):
     def parent(self, value):
         self._parent = value
         root = self.root
-        if issubclass(self._subobj, BaseElement):
+        '''
+        TODO:
+        这里最好是改成 self._subobj(by=x, locator=y)
+        然后再手动设置 .parent = root
+        即使是 BaseElement 也能设置 .parent
+        '''
+        if not isinstance(self._subobj, type):
+            init = lambda x, y: self._subobj(x, y)
+        elif issubclass(self._subobj, BaseElement):
             init = lambda x, y: self._subobj(x, y)
         else:
             init = lambda x, y: self._subobj(root, x, y)
@@ -527,7 +548,7 @@ class DictContainer(BaseContainer, DictMixin):
         '''
         dict.__init__(self, (
             (self._key(x), init(
-                self._subby, _selector_dict[self.subby] % (self._subxpath, i + 1)))
+                self._subby, _selector_dict[self._subby] % (self._subxpath, i + 1)))
             for i, x in items
         ))
 

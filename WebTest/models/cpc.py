@@ -2,8 +2,8 @@
 
 from .common import *
 from ..compat import By, WebElement
+from ..utils import kwargs_dec
 import collections
-
 
 '''
 怎么将NameEditContainer装配成InputElement
@@ -271,9 +271,19 @@ class DateContainer(BaseContainer):
     confirm = InputElement(By.CSS_SELECTOR, 'a.confirm-btn')
     cancel = InputElement(By.CSS_SELECTOR, 'a.close-btn')
 
+    def set_date(self, start, end):
+        self.start_date = start
+        self.end_date = end
+        self.confirm = True
+
+    def set_header(self, value):
+        self.header = value
+        self.confirm = True
 
 date_container = DateContainer(
     None, By.XPATH, '//div[@class="fn-date-container right"]')
+
+question_mark = BaseElement(By.CSS_SELECTOR, 'body > div.helpBlank')
 
 
 class TRContainer(BaseContainer):
@@ -307,13 +317,20 @@ class THContainer(BaseContainer):
         By.XPATH, './/a[contains(@class, "filter")]',
         subobj=InputElement, key=lambda x: x.find_element(By.XPATH, '..').text)
 
+    # 可以排序
     order = DictElement(
         By.XPATH, './/span[contains(@class, "order")]',
-        subobj=InputElement, key=lambda x: x.find_element(By.XPATH, '..').text)
-    # 可以排序
+        subobj=InputElement, key=lambda x: x.find_element(By.XPATH, '..').text.strip())
+
+    # 问号
+    question = DictElement(
+        By.XPATH, './/td//img',
+        subobj=kwargs_dec(ContainerElement, obj=BaseElement(
+            By.XPATH, '//body/div[contains(@class, "helpBlank")]')),
+        key=lambda x: x.find_element(By.XPATH, '..').text.strip())
 
 status_filter = DictContainer(
-    None, By.XPATH, '//ul[@class="state-win"]', './/li', InputElement)
+    None, By.XPATH, '//ul[@class="state-win"]', subxpath='.//li', subobj=InputElement)
 
 ##########################################################################
 

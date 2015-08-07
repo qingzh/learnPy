@@ -5,10 +5,36 @@ from .compat import By, WebElement
 import random
 import string
 
-__all__ = ['_find_input', '_set_input',
+__all__ = ['_find_input', '_set_input', 'len_unicode', 'kwargs_dec',
            '_find_and_set_input', 'gen_random_ascii', 'gen_chinese_unicode']
 
 INPUT_TEXT_TYPES = set(('text', 'password'))
+
+
+def kwargs_dec(func, **dec_kwargs):
+    def wrapper(*args, **kwargs):
+        kwargs.update(dec_kwargs)
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def len_unicode(s, encoding='utf8'):
+    '''
+    unicode lenght in python is 3-bytes
+    convert it into 2-bytes
+
+    >>> len(u'哈哈')
+    6
+    >>> len_unicode(u'哈哈')
+    4
+    >>> len(u'哈哈a')
+    7
+    >>> len_unicode(u'哈哈a')
+    5
+    '''
+    if isinstance(s, str):
+        return (len(s) + len(s.decode(encoding))) / 2
+    return (len(s.encode(encoding)) + len(s)) / 2
 
 
 def _find_input(element):

@@ -24,7 +24,7 @@ import shlex
 import os
 
 reldir = os.path.dirname(os.path.relpath(__file__))
-SCRIPT_PATH = os.path.join(reldir, 'test2.py') # or './test2.py'
+SCRIPT_PATH = os.path.join(reldir, 'test2.py')  # or './test2.py'
 
 
 def worker(q):

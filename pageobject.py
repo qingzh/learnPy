@@ -7,11 +7,16 @@ import time
 from selenium.common.exceptions import (
     NoSuchElementException, ElementNotVisibleException)
 from selenium.webdriver.common.action_chains import ActionChains
-from APITest.model.models import _slots_class
+from APITest.model.models import _slots_class, AttributeDict
 from WebTest.models.cpc import LoginPage, CPCPage
-from WebTest.utils import _find_input, _set_input, gen_chinese_unicode
+from WebTest.utils import *
+from WebTest.exceptions import *
 import random
-
+import logging
+import threading
+from requests.utils import unquote
+import json
+import urlparse
 '''
 ######################################################################
 
@@ -31,6 +36,12 @@ self.root: 控件的根节点，可能和self.parent相同
 
 我们需要一个 类似 _slots_class 的动态类
   _property_class 来动态生成Container
+
+TODO:
+    等待页面加载结束
+
+改写 find_element 还是 改写 .click() .send_keys()
+
 
 '''
 
@@ -133,8 +144,8 @@ caps['loggingPrefs'] = {'performance': 'ALL'}
 ######################################################################
 
 
-def test_main(driver):
-    login(driver)
+def test_main(driver, **kwargs):
+    login(driver, **kwargs)
     cpc = CPCPage(driver)
     # 进入推广管理
     time.sleep(3)
@@ -161,6 +172,81 @@ def edit_single(driver):
     element.name_editor.set_and_confirm(name)
     assert element.unitName.text == name
 
+######################################################################
+#  Capture Tiem delta with `Crhome`
+# caps['loggingPrefs'] = {'performance': 'ALL'}
+# cr = Chrome(desired_capabilities=caps)
+
+
+TIME_LOGGER = logging.getLogger('time-delta')
+TIMEINFO = TIME_LOGGER.info
+
+
+class PerformanceEntry(object):
+    __slots__ = ['secureConnectionStart',
+                 'redirectStart',
+                 'redirectEnd',
+                 'name',
+                 'startTime',
+                 'domainLookupEnd',
+                 'connectEnd',
+                 'requestStart',
+                 'initiatorType',
+                 'responseEnd',
+                 'fetchStart',
+                 'duration',
+                 'responseStart',
+                 'entryType',
+                 'connectStart',
+                 'domainLookupStart',
+                 '_parsed',
+                 '_parsed_query']
+
+    def __init__(self, *args, **kwargs):
+        d = dict(*args, **kwargs)
+        for k, v in d.iteritems():
+            setattr(self, k, v)
+
+    @property
+    def processingTime(self):
+        return self.responseStart - self.requestStart
+
+    @property
+    def parsed(self):
+        if not hasattr(self, '_parsed'):
+            self._parsed = urlparse.urlparse(self.name)
+        return self._parsed
+
+    @property
+    def parsed_query(self):
+        if not hasattr(self, '_parsed_query'):
+            self._parsed_query = AttributeDict(
+                urlparse.parse_qs(self.parsed.query))
+        return self._parsed_query
+
+
+def time_delta(driver, pattern=r'.json'):
+    # Get array of performance entry
+    t = driver.execute_script(
+        'return window.performance.getEntriesByType("resource")')
+    for item in t[::-1]:
+        if pattern in item['name']:
+            return PerformanceEntry(item)
+    raise NoPerformanceEntry
+
+
+def get_time(driver):
+    page = CPCPage(driver)
+    main = page.body.main
+    main.level = u'单元'
+    main.tools.row_title.select_all()
+    main.tools.date_picker.set_header(u'上月')
+
+    time_delta = kwargs_dec(time_delta, pattern=r'customizedList.json')
+    entries = []
+    # 开始记录时间啦啦啦啦
+    entries.append(time_delta(driver))
+    main.tools.status = u'推广中'
 
 ######################################################################
 #  Capture Network Traffic
