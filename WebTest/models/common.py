@@ -10,13 +10,16 @@
 TODO:
  将 list dict 变成 iterator 提高性能？
 
+TODO:
+ 只有root元素变的时候才需要修改元素
+ 如何利用这个进行优化？
+
 """
 
 from ..utils import *
 from ..compat import (
     By, WebElement, NoSuchElementException, ElementNotVisibleException)
 from APITest.model.models import _slots_class
-
 
 __all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
            'DictElement', 'BasePage', 'ContainerElement', 'BaseContainer',
@@ -31,7 +34,8 @@ PageInfo = _slots_class(
 
 '''
 # 获取 Chrome 提供的 HTML5 Performance Timing 对象
-entries = AttributeDict(driver.execute_script('return window.performance.getEntries()'))
+entries = AttributeDict(
+    driver.execute_script('return window.performance.getEntries()'))
 for entry in entries:
     if entry.name.index(pattern):
         duration = entry.requestStart - entry.responseStart
@@ -65,7 +69,11 @@ class BaseElement(object):
                 obj.click()
                 item = obj.find_element(self.by, self.locator)
             return item
-        return obj.root.find_element(self.by, self.locator)
+        try:
+            return obj.root.find_element(self.by, self.locator)
+        except Exception as e:
+            # print obj.root, self.by, self.locator
+            raise e
 
 
 class InputElement(BaseElement):
@@ -107,14 +115,31 @@ class StatusElement(BaseElement):
         self._key = key
         self._map = key_map
 
+    def __get__(self, obj, objtype):
+        item = super(StatusElement, self).__get__(obj)
+        return self._key(item)
+
     def __set__(self, obj, value):
         if value not in self._map:
             raise Exception('Status is not supported!')
         item = super(StatusElement, self).__get__(obj)
+        # print type(obj), self.by, self.locator
+        # print item, self._key(item)
         status = self._map[value]
-        while status != self._key(item):
+        origin = current = self._key(item)
+        if status == current:
+            return
+        while True:
+            '''
+            有可能状态就是遍历不到
+            '''
             item.click()
-"""
+            item = super(StatusElement, self).__get__(obj)
+            # print item, self._key(item)
+            current = self._key(item)
+            if status == current or origin == current:
+                return
+    """
 TODO:
   ListElement, DictElement
   目前 _subxpath 只支持xpath这种形式
@@ -195,7 +220,7 @@ class ContainerElement(BaseElement):
        能不能让 Page也允许装配？
     2. Nested ContainerElement?
 
-    需要注意，如果存在 点击-展现 的行为的话 
+    需要注意，如果存在 点击-展现 的行为的话
     ContainerElement 的 parent 节点一定要是 click 的！
 
     挑战：
@@ -399,7 +424,7 @@ class BaseContainer(BasePage):
     def parent(self, value):
         self._parent = value
 
-    def click_parent(self):
+    def _click_parent(self):
         try:
             self.parent.click()
         except ElementNotVisibleException:
@@ -416,10 +441,10 @@ class BaseContainer(BasePage):
         try:
             self._root = super(BaseContainer, self).root
         except NoSuchElementException:
-            self.click_parent()
+            self._click_parent()
             self._root = super(BaseContainer, self).root
         if not self._root.is_displayed():
-            self.click_parent()
+            self._click_parent()
         return self._root
 
 
@@ -500,7 +525,7 @@ class DictContainer(BaseContainer, DictMixin):
     do Initialization of dict when set `parent`
     '''
 
-    def __init__(self, parent=None, by=None, locator=None, subby=None, subxpath=None, subobj=None, key=None):
+    def __init__(self, parent=None, by=None, locator=None, subby=None, subxpath=None, subobj=None, key=None, visible=True):
         '''
         find all leaf nodes with no-blank displayed text
         element with no child: `*[not(child::*)]` or `*[not(*)]`
@@ -508,7 +533,7 @@ class DictContainer(BaseContainer, DictMixin):
         `*` means "selectes all element children of the context node"
         subobj 必须是 class? 如果是 instance 呢？
 
-        TODO: 
+        TODO:
             subobj 是一个 class property
         '''
         super(DictContainer, self).__init__(parent, by, locator)
@@ -516,6 +541,7 @@ class DictContainer(BaseContainer, DictMixin):
         self._subxpath = subxpath or './/*[not(*) and text() != ""]'
         self._subobj = subobj or BaseElement
         self._key = key or (lambda x: x.text.strip())
+        self._visible = visible
 
     @property
     def parent(self):
@@ -537,7 +563,9 @@ class DictContainer(BaseContainer, DictMixin):
             init = lambda x, y: self._subobj(x, y)
         else:
             init = lambda x, y: self._subobj(root, x, y)
-        items = root.find_elements_with_index(self._subby, self._subxpath)
+        items = root.find_elements_with_index(self._subby, self._subxpath, self._visible)
+        # print self._subby, self._subxpath, root.text
+        # print items
         '''
         初始化
         key: self._key(x), x is the `WebElement` object of node

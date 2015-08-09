@@ -111,6 +111,11 @@ status_editor = StatusElement(
     key=lambda x: x.get_attribute('class').rpartition(' ')[-1],
     key_map={u'暂停': 'pause', u'恢复': 'run'})
 
+order_editor = StatusElement(
+    By.CSS_SELECTOR, 'span.order',
+    key=lambda x: x.get_attribute('class').rpartition(' ')[-1],
+    key_map={u'升序': 'order-up', u'降序': 'order-down'})
+
 # 推广时段，列出了7天：周一 ... 周日
 
 
@@ -293,16 +298,21 @@ class TRContainer(BaseContainer):
     __set__ ?
     '''
     checkbox = InputElement(By.XPATH, './/input[@type="checkbox"]')
-    unitName = BaseElement(By.XPATH, './/td[@name="unitName"]')
-    planName = BaseElement(By.XPATH, './/td[@name="planName"]')
-    status = BaseElement(By.XPATH, './/td[@name="status"]')
+    unitName = InputElement(By.XPATH, './/td[@name="unitName"]')
+    planName = InputElement(By.XPATH, './/td[@name="planName"]')
+    status = BaseElement(By.CSS_SELECTOR, 'span.text-state')
     bid = BaseElement(By.XPATH, './/td[@name="bid"]')
     negWord = BaseElement(By.XPATH, './/td[@name="negWord"]')
     platform = BaseContainer(By.XPATH, './/td[@name="platform"]')
     name_editor = name_editor
+    status_editor = status_editor
     days_editor = days_editor
     platform_editor = platform_editor
     budget_editor = budget_editor
+
+    @property
+    def status(self):
+        return self.root.find_element(By.CSS_SELECTOR, 'span.text-state').text
 
 
 class THContainer(BaseContainer):
@@ -320,7 +330,11 @@ class THContainer(BaseContainer):
     # 可以排序
     order = DictElement(
         By.XPATH, './/span[contains(@class, "order")]',
-        subobj=InputElement, key=lambda x: x.find_element(By.XPATH, '..').text.strip())
+        subobj=kwargs_dec(
+            StatusElement,
+            key=lambda x: x.get_attribute('class').rpartition(' ')[-1],
+            key_map={u'升序': 'order-up', u'降序': 'order-down'}),
+        key=lambda x: x.find_element(By.XPATH, '..').text.strip())
 
     # 问号
     question = DictElement(
@@ -435,7 +449,19 @@ class CPCTabContainer(BaseContainer):
         By.CSS_SELECTOR, 'div.main-table-area', TableContainer)
 
     # 页数
-    numbers = ListElement(By.CSS_SELECTOR, 'li.page-item')
+    '''
+    这里有一个问题，selector是很难定义点击之后显示的。
+    因为他本来就是显示的……因为他需要点击的父亲结点是<select>
+    <select>
+        <option> A </option>
+    </select>
+    '''
+    recordPerPage = ContainerElement(
+        By.XPATH, './/div[@class="page-num"]/select',
+        DictContainer(
+            None, By.XPATH, './option', subxpath='../option', subobj=InputElement, visible=False)
+    )
+    numbers = ListElement(By.XPATH, './/li[@class="page-item"]')
 
     # 总记录数
     @property

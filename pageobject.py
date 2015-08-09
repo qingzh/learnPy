@@ -7,7 +7,7 @@ import time
 from selenium.common.exceptions import (
     NoSuchElementException, ElementNotVisibleException)
 from selenium.webdriver.common.action_chains import ActionChains
-from APITest.model.models import _slots_class, AttributeDict
+from APITest.model.models import _slots_class, AttributeDict, SlotsDict
 from WebTest.models.cpc import LoginPage, CPCPage
 from WebTest.utils import *
 from WebTest.exceptions import *
@@ -17,6 +17,10 @@ import threading
 from requests.utils import unquote
 import json
 import urlparse
+from selenium.webdriver import Chrome, Firefox
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+
+
 '''
 ######################################################################
 
@@ -114,21 +118,42 @@ def batch_resume(driver):
         _batch_resume(page)
 
 
-def func(driver):
-    cookies = {u'domain': u'e.sm.cn',
-               u'expiry': None,
-               u'httpOnly': True,
-               u'name': u'JSESSIONID',
-               u'path': u'/cpc/',
-               u'secure': False,
-               u'value': u'24FBD20936B60AB6B712197BC2DF73D3-n1'}
-    driver.get('https://e.sm.cn')
-    driver.add_cookie(cookies)
-    driver.get('https://e.sm.cn/cpc/adManagement')
+def add_cookie(driver):
+    cookies = [{u'domain': u'e.sm.cn',
+                u'name': u'JSESSIONID',
+                u'path': u'/cpc/',
+                u'secure': False,
+                u'value': u'5632AE823F921DF652E51169AFBE4630-n1'},
+               {u'domain': u'e.sm.cn',
+                u'name': u'JSESSIONID',
+                u'path': u'/fs/',
+                u'secure': False,
+                u'value': u'D8D0C042D91A905E05FC5D8F98A3BBB2'},
+               {u'domain': u'e.sm.cn',
+                u'name': u'JSESSIONID',
+                u'path': u'/message/',
+                u'secure': False,
+                u'value': u'F96E462644C5E8CEE38AE223402A1339'},
+               {u'domain': u'e.sm.cn',
+                u'name': u'JSESSIONID',
+                u'path': u'/kr/',
+                u'secure': False,
+                u'value': u'81A103B140D39FA92A89790CD33AA886'},
+               {u'domain': u'e.sm.cn',
+                u'name': u'JSESSIONID',
+                u'path': u'/report/',
+                u'secure': False,
+                u'value': u'77684926972F460CD239EC616879154F'},
+               {u'domain': u'e.sm.cn',
+                u'name': u'JSESSIONID',
+                u'path': u'/oplog/',
+                u'secure': False,
+                u'value': u'8502C6403AB09647F98356C80918CFA0'}]
+    driver.get('https://e.sm.cn/cpc')
+    map(lambda x: driver.add_cookie(x), cookies)
+    driver.get('https://e.sm.cn/cpc')
     return driver
 
-from selenium.webdriver import Chrome, Firefox
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 ######################################################################
 #  Crhome Options
@@ -182,7 +207,9 @@ TIME_LOGGER = logging.getLogger('time-delta')
 TIMEINFO = TIME_LOGGER.info
 
 
-class PerformanceEntry(object):
+class PerformanceEntry(SlotsDict):
+    _parsed = None
+    _parsed_query = None
     __slots__ = ['secureConnectionStart',
                  'redirectStart',
                  'redirectEnd',
@@ -203,9 +230,11 @@ class PerformanceEntry(object):
                  '_parsed_query']
 
     def __init__(self, *args, **kwargs):
-        d = dict(*args, **kwargs)
-        for k, v in d.iteritems():
-            setattr(self, k, v)
+        # TODO: not compatible with nested dict
+        super(SlotsDict, self).__init__(*args, **kwargs)
+
+    def __hash__(self):
+        return hash(tuple(self.values()))
 
     @property
     def processingTime(self):
@@ -213,40 +242,72 @@ class PerformanceEntry(object):
 
     @property
     def parsed(self):
-        if not hasattr(self, '_parsed'):
+        if self._parsed is None:
             self._parsed = urlparse.urlparse(self.name)
         return self._parsed
 
     @property
     def parsed_query(self):
-        if not hasattr(self, '_parsed_query'):
+        if self._parsed_query is None:
             self._parsed_query = AttributeDict(
                 urlparse.parse_qs(self.parsed.query))
         return self._parsed_query
 
 
+def time_delta_list(driver, initiatorType="xmlhttprequest"):
+    # Get array of performance entry
+    # 只要不刷新页面，就能一直保留
+    t = driver.execute_script(
+        '''return window.performance.getEntriesByType("resource").filter(
+            function(x){
+                return x.initiatorType.toLowerCase() == "%s";
+            })''' % initiatorType.lower())
+    return map(lambda x: PerformanceEntry(x), t)
+
+
 def time_delta(driver, pattern=r'.json'):
     # Get array of performance entry
-    t = driver.execute_script(
-        'return window.performance.getEntriesByType("resource")')
-    for item in t[::-1]:
-        if pattern in item['name']:
-            return PerformanceEntry(item)
-    raise NoPerformanceEntry
+    item = driver.execute_script(
+        '''return window.performance.getEntriesByType("resource").filter(function(x){
+            return x.name.match(/%s/);
+        }).pop()''' % pattern)
+    if item:
+        return PerformanceEntry(item)
+    return None  # or raise Exception
 
 
-def get_time(driver):
+def get_time_by_level(driver, level):
     page = CPCPage(driver)
     main = page.body.main
-    main.level = u'单元'
-    main.tools.row_title.select_all()
-    main.tools.date_picker.set_header(u'上月')
+    main.level = level
 
-    time_delta = kwargs_dec(time_delta, pattern=r'customizedList.json')
-    entries = []
+    # 让所有控件可见，展示所有列，日期为上月
+    driver.set_window_size(1600, 1200)
+    main.tools.row_title.select_all()
+    main.tools.date_picker.set_date('2015-06-01', '2015-07-01')
+
+    def get_time_delta():
+        pass
+
     # 开始记录时间啦啦啦啦
-    entries.append(time_delta(driver))
-    main.tools.status = u'推广中'
+    _time_delta = kwargs_dec(time_delta, pattern=r'customizedList.json')
+    entries = []
+    table = main.table
+    for _status in main.tools.status.keys():
+        print '-' * 80, '\n', _status
+        main.tools.status = _status
+        entries.append((_time_delta(driver), _status, u'默认排序'))
+        for _order in table.thead.order.keys():
+            print _order
+            # 默认是降序在前
+            table.thead.order[_order] = u'降序'
+            entries.append((_time_delta(driver), _status, _order, u'降序'))
+            table.thead.order[_order] = u'升序'
+            entries.append((_time_delta(driver), _status, _order, u'升序'))
+        # 需要去掉过滤状态
+        main.level = level
+
+    return entries
 
 ######################################################################
 #  Capture Network Traffic
@@ -277,3 +338,18 @@ proxy.add_to_capabilities(caps)
 driver = webdriver.Remote(desired_capabilities=caps)
 """
 ######################################################################
+
+import requests
+from requests import cookies
+
+
+def set_session_cookies_from_driver(session, driver):
+    for cookie in driver.get_cookies():
+        if 'expiry' in cookie:
+            cookie['expires'] = cookie.pop('expiry')
+        session.cookies.set_cookie(cookies.create_cookie(**cookie))
+
+'''
+使用session.get('http://e.sm.cn/cpc/adManagement?uid=1061') 失败
+但是requests.get('http://e.sm.cn/cpc/adManagement?uid=1061', cookies = session.cookies) 成功
+'''
