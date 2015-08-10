@@ -73,28 +73,6 @@ startDate = '2015-05-01'
 endDate = '2015-06-01'
 orderName = ['acp', 'clickRatio', 'consume', 'clickNum', 'showNum']
 
-context = AttributeDict({
-    "context": {
-        "bizParam": {
-            "uid": None,
-            "level": None,
-            "recordPerPage": 50,  # max = 500
-            "startDate": startDate,
-            "endDate": endDate,
-            "totalRecord": -1,
-            "reqPageIndex": 1,
-            "totalPage": -1,
-            "filterMapJson": {
-                # "frontState": 状态筛选
-            },
-            "orderName": None,
-            "orderValue": None,  # False: Descend
-            "ids": "",  # Keep it Blank
-            "parentLevel": 1,  # `1`: account level
-            "parentId": None  # Keep it Blank at account level
-        }}
-})
-context.bizParam.uid = USERID
 
 """
 准备 状态筛选
@@ -139,24 +117,55 @@ frontState = {
 }
 
 level_uri = [None, 'user', 'plan', 'unit', 'winfo', 'idea', 'app',
-             'phone', 'xijing', 'ideaPro', 'ideaProPic', 'ideaProApp']
+             'phone', 'xiJin', 'ideaPro', 'ideaProPic', 'ideaProApp']
 
 
-def set_uid(context, uid):
-    context.bizParam.uid = uid
+class Context(SlotsDict):
+    __slots__ = ['context']
+
+    def __init__(self):
+        self.context = {
+            "bizParam": {
+                "uid": None,
+                "level": None,
+                "recordPerPage": 50,  # max = 500
+                "startDate": None,
+                "endDate": None,
+                "totalRecord": -1,
+                "reqPageIndex": 1,
+                "totalPage": -1,
+                "filterMapJson": {
+                    # "frontState": 状态筛选
+                },
+                "orderName": None,
+                "orderValue": None,  # False: Descend
+                "ids": "",  # Keep it Blank
+                "parentLevel": 1,  # `1`: account level
+                "parentId": None  # Keep it Blank at account level
+            }}
+
+    def set_level(self, level):
+        self.context.
+    def set_uid(self, uid):
+        self.context.bizParam.uid = uid
 
 
-def set_order(context, orderName, orderValue):
-    context.bizParam.orderName = orderName
-    context.bizParam.orderValue = orderValue
+    def set_order(self, orderName, orderValue):
+        self.context.bizParam.orderName = orderName
+        self.context.bizParam.orderValue = orderValue
 
 
-def set_page_index(context, index):
-    context.bizParam.reqPageIndex = index
+    def set_page_index(self, index):
+        self.context.bizParam.reqPageIndex = index
 
 
-def set_status(context, state):
-    context.bizParam.filterMapJson = dict(frontState=state)
+    def set_status(self, state):
+        self.context.bizParam.filterMapJson = dict(frontState=state)
+
+
+    def set_date(self, start, end):
+        self.context.bizParam.startDate = start
+        self.context.bizParam.endDate = end
 
 
 def set_url(server, level):
@@ -170,4 +179,10 @@ def set_url(server, level):
     | PhoneLevel | 9 | 电话 |
     | XiJingLevel | 10 | 蹊径 |
     '''
+    # parsedUrl = urlparse.urlparse(server)
+    # parsedUrl.scheme = parsedUrl.scheme or 'http'
     return server + '/' + level_uri[level] + '/customizedList.json'
+
+
+def test_main():
+    set_uid(context, USERID)
