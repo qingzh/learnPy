@@ -298,8 +298,8 @@ class TRContainer(BaseContainer):
     __set__ ?
     '''
     checkbox = InputElement(By.XPATH, './/input[@type="checkbox"]')
-    unitName = InputElement(By.XPATH, './/td[@name="unitName"]')
-    planName = InputElement(By.XPATH, './/td[@name="planName"]')
+    unitName = InputElement(By.XPATH, './/td[@name="unitName"]//a')
+    planName = InputElement(By.XPATH, './/td[@name="planName"]//a')
     status = BaseElement(By.CSS_SELECTOR, 'span.text-state')
     bid = BaseElement(By.XPATH, './/td[@name="bid"]')
     negWord = BaseElement(By.XPATH, './/td[@name="negWord"]')
@@ -434,6 +434,11 @@ class CPCTabContainer(BaseContainer):
         DictContainer, subxpath='./li', subobj=InputElement
     )
     # tab主页面
+
+    # 选择类型
+    style = ContainerElement(
+        By.CSS_SELECTOR, 'div.sub-nav-area',
+        DictContainer, subxpath='.//li', subobj=InputElement)
 
     # 页头：批量操作，选择时间，过滤状态灯
     tools = ContainerElement(
