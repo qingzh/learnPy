@@ -1,0 +1,5 @@
+'update_negative.cases' : [['/api/account/updateAccount', post]]
+'get_negative.cases': [['/api/account/getAccount', post]]
+'update_getAccount.cases': [
+    ['/api/account/updateAccount', post],
+    ['/api/account/getAccount', post]]

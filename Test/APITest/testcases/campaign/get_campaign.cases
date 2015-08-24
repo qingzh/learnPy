@@ -1,0 +1,11 @@
+# body 不存在
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null}}
+{"header":{"status":0,"desc":"success"},"body":{"campaignIds":*}}
+
+# body 为null
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":null}
+{"header":{"status":0,"desc":"success"},"body":{"campaignIds":*}}
+
+# body 为空
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"status":0,"desc":"success"},"body":{"campaignIds":*}}

@@ -1,0 +1,19 @@
+# body 不存在, 计划ID不允许为空
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901200,"message":"计划id不合法"}]}}
+
+# campaignIds 不存在 计划ID不允许为空
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901200,"message":"计划id不合法"}]}}
+
+# campaignIds 为null, 计划ID不允许为空
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{"campaignIds": null}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901200,"message":"计划id不合法"}]}}
+
+# campaignIds 为空列表, 计划ID不允许为空
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{"campaignIds": []}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901200,"message":"计划id不合法"}]}}
+
+# campaignIds 类型不符, 计划ID不允许为空
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{"campaignIds": []}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901200,"message":"计划id不合法"}]}}

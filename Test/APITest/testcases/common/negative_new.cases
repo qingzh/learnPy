@@ -1,0 +1,90 @@
+# 用户名非字符串: 数字
+{"header":{"username":123456,"password": "123456","token": "1f364fff-73f5-11f4-8f90- 000f29960ff7","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}}  
+
+# 用户名非字符串: 浮点数
+{"header":{"username":1234.56,"password": "123456","token": "1f364fff-73f5-11f4-8f90- 000f29960ff7","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}} 
+
+# 用户名为空
+{"header":{"username":null,"password": "123456","token": "1f364fff-73f5-11f4-8f90- 000f29960ff7","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"鉴权参数错误!","message":"invalid_request!"}]}}
+
+# 用户名不存在
+{"header":{"username":"123456","password": "123456","token": "1f364fff-73f5-11f4-8f90- 000f29960ff7","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"token格式错误","message":"INVALID_TOKEN"}]}}
+
+# ?? 应该是 用户名不存在 ??
+
+
+# 用户名包含特殊字符
+{"header":{"username":"***","password": "123456","token": "1f364fff-73f5-11f4-8f90- 000f29960ff7","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"token格式错误","message":"INVALID_TOKEN"}]}}
+
+# 密码缺失
+{"header":{"username":"ShenmaPM2.5","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"鉴权参数错误!","message":"invalid_request!"}]}}
+
+# 密码为空
+{"header":{"username":"ShenmaPM2.5","password": null,"token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"鉴权参数错误!","message":"invalid_request!"}]}}
+
+# 密码不匹配
+{"header":{"username":"ShenmaPM2.5","password": "123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"用户名或密码错误","message":"USERNAME_PASSWORD_ERROR"}]}}
+
+# 密码包含特殊字符
+{"header":{"username":"ShenmaPM2.5","password": "@#$%^&*()","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"username":"ShenmaPM2.5","password": "@#$%^&*()","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+
+# 密码类型错误：浮点数
+{"header":{"username":"ShenmaPM2.5","password": 123.45,"token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}} 
+
+# 密码类型错误：整数
+{"header":{"username":"ShenmaPM2.5","password": 12345,"token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}} 
+
+# 密码为非法Json
+{"header":{"username":"ShenmaPM2.5 ","password":pd123456,"token":"d789a6c8-e6d9-4d7c-bf16-0f518d6888b1"}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}} 
+
+# Token缺失
+{"header":{"username":"ShenmaPM2.5","password":"pd123456"},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"鉴权参数错误!","message":"invalid_request!"}]}}
+
+# Token为空
+{"header":{"username":"ShenmaPM2.5","password":"pd123456","token":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"鉴权参数错误!","message":"invalid_request!"}]}}
+
+# Token类型不符：浮点类型
+{"header":{"username":"ShenmaPM2.5","password":"pd123456","token":1234567.890},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}} 
+
+# Token类型不符：整型
+{"header":{"username":"ShenmaPM2.5","password":"pd123456","token":1234567},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}} 
+
+## json值为 '*' 表示可以匹配任意值
+
+# Token类型不符：整型(000000)
+{"header":{"username":"ShenmaPM2.5","password":"pd123456","token":000000},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}} 
+
+# Token包含特殊字符
+{"header":{"username":"ShenmaPM2.5","password":"pd123456","token":"@#￥%……&*"},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"token格式错误","message":"INVALID_TOKEN"}]}}
+
+# Token Json无法正常解析
+{"header":{"username":"ShenmaPM2.5","password":"pd123456","token":d789a6c8-e6d9-4d7c-bf16-0f518d6888b1},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误"}]}} 
+
+# Header多了无效参数：
+{"header":{"username":"ShenmaPM2.5","password":"pd123456","token":"d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","INVALID_FOR_TEST":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"权限不足","message":"PERMISSION_DENIED"}]}}
+
+# ?? 肯定不能是 权限不足 ??
+
+# body多了无效参数
+{"header":{"username":"ShenmaPM2.5","password":"pd123456","token":"d789a6c8-e6d9-4d7c-bf16-0f518d6888b1"},"body":{"INVALID_FOR_TEST":null}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":805,"content":"权限不足","message":"PERMISSION_DENIED"}]}}

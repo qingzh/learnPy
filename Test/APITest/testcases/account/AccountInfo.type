@@ -1,0 +1,28 @@
+AccountInfo{
+    userId: long # 不允许更改
+    balance: double # 不允许更改
+    cost: double # 不允许更改
+    payment: int # 不允许更改
+
+    budgetType: int; default=0 # 0表示不设置预算，1表示设置日预算
+    budget: double # 账户预算, [10, 500000]
+    regionTarget: string[] # 推广地域列表,第1个元素为"所有地域"表示设置所有投放地域
+    excludeIp: string[] # ip排除列表，最多30个，后两位可为"*"
+    
+    openDomains: string[] # # 不允许更改
+    regDomain: string # 账户注册域名 # 不允许更改
+    userStat: int # 账户状态 # 不允许更改
+    weeklyBudget: double[] # 最近七天的每日预算值，目前只返回昨天; -1.0表示没有预算限制 # 不允许更改
+}
+usetStat:
+0, 物理删除/被停用
+1, 用户暂未生效 
+2, 被暂停
+10, 资质文件尚未提交 
+11, 审核被拒绝 
+12, 待审核
+20, 余额为 0
+21, 余额不足
+22, 预算不足
+100; 正常状态
+regionTarget 可选范围：

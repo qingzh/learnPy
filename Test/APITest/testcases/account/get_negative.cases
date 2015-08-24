@@ -1,0 +1,24 @@
+# body 不存在
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":9014,"message":"请求的对象为空"}]}}
+# body 为null
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":null}
+{"header":{"status":2,"desc":"fail","failures":[{"code":9014,"message":"请求的对象为空"}]}}
+# body 为空，意即requestData参数不存在
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1","target":null},"body":{}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901130,"message":"请求账户信息输入参数不合法"}]}}
+# requestData 参数为null
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1"},"body":{"requestData":null}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901130,"message":"请求账户信息输入参数不合法"}]}}
+# requestData 参数为空字符串
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1"},"body":{"requestData":""}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":800,"message":"系统错误","content":"*"}]}}
+# requestData 参数为整型list
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1"},"body":{"requestData":[1,2,3]}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901130,"message":"请求账户信息输入参数不合法"}]}}
+# requestData 参数为不合法字符串: "abc"
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1"},"body":{"requestData":["abc"]}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901130,"message":"请求账户信息输入参数不合法"}]}}
+# requestData 参数包含特殊字符: "@#￥%^*()"
+{"header":{"username":"ShenmaPM2.5","password": "pd123456","token": "d789a6c8-e6d9-4d7c-bf16-0f518d6888b1"},"body":{"requestData":["@#￥%^*()"]}}
+{"header":{"status":2,"desc":"fail","failures":[{"code":901130,"message":"请求账户信息输入参数不合法"}]}}

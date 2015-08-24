@@ -1,0 +1,6 @@
+'get_negative.cases' : [['/api/campaign/getAllCampaignID', post]]
+'delete_negative.cases': [['/api/campaign/deleteCampaign', delete]]
+'get_campaign.cases' : [['/api/campaign/getAllCampaignID', post]]
+'get_delete.cases': [
+    ['/api/campaign/getAllCampaignID', post], 
+    ['/api/campaign/deleteCampaign', delete]]
