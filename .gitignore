@@ -1,1 +1,7 @@
 *.pyc
+*.log
+nohup.out
+Test/APITest/settings.py
+chromedriver
+.*
+wolong.cookies

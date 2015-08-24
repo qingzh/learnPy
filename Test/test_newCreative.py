@@ -128,7 +128,8 @@ def _get_adgroupId(server, user, refresh=False):
 
 
 def _delete_adgroupId(server, user):
-    tag_dict = ThreadLocal.get_tag_dict((server, user.username), TAG_TYPE)
+    tag = user.get_tag(TAG_TYPE)
+    tag_dict = ThreadLocal.get_tag_dict((server, user.username), tag)
     user.delete_campaign(server, tag_dict['campaignId'])
     tag_dict.clear()
 
@@ -264,6 +265,10 @@ def test_updateSublink_4to3(server, user):
 
 
 def test_updateSublink(server, user):
+    res = getSublinkBySublinkId(
+        header=user, server=server, body={'sublinkIds': [GLOBAL['sublink']['sublinkId']]})
+    assert_header(res.header, STATUS.SUCCESS)
+    GLOBAL['sublink']['output'] = res.body.sublinkTypes[0]
     test_updateSublink_2to4(server, user)
     test_updateSublink_4to3(server, user)
 
