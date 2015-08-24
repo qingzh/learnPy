@@ -6,6 +6,7 @@
 
 import json
 from itertools import chain
+import collections
 
 SEQUENCE_TYPE = (list, tuple, set)
 
@@ -137,6 +138,11 @@ class AttributeDict(dict):
         # Nested AttributeDict object
         if isinstance(value, dict) and not isinstance(value, self.__class__) and issubclass(self.__class__, type(value)):
             value = self.__class__(value)
+        # sequence
+        if isinstance(value, collections.Sequence):
+            for idx, item in enumerate(value):
+                if isinstance(item, dict) and not isinstance(item, self.__class__) and issubclass(self.__class__, type(item)):
+                    value[idx] = self.__class__(item)
         super(AttributeDict, self).__setitem__(key, value)
 
     def __setattr__(self, key, value):
