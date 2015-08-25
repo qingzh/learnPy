@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 
-from .models import APIType, AttributeDict
+from .models import APIType, APIData
 from TestCommon.models.const import BLANK
 
 __all__ = ['creativeType', 'GroupCreative', 'GroupCreativeId', 'StatusType']
@@ -27,7 +27,7 @@ class CreativeType(APIType):
         self.status = status
 
 
-class GroupCreative(AttributeDict):
+class GroupCreative(APIData):
 
     '''
     按单元ID分组的计算机推广子链id集合
@@ -42,7 +42,7 @@ class GroupCreative(AttributeDict):
         self.creativeTypes = creativeTypes
 
 
-class GroupCreativeId(AttributeDict):
+class GroupCreativeId(APIData):
 
     def __init__(self, adgroupId, creativeIds):
         # 推广单元ID
@@ -51,7 +51,7 @@ class GroupCreativeId(AttributeDict):
         self.creativeIds = creativeIds
 
 
-class StatusType(AttributeDict):
+class StatusType(APIData):
 
     '''
     按单元ID分组的计算机推广子链id集合
@@ -68,3 +68,17 @@ class StatusType(AttributeDict):
         # 该对象的状态
         # 0：暂停推广；1：审核中；2：不宜推广；5：推广中
         self.status = status
+
+class IDTYPE(object):
+    CAMPAIGN = 3
+    ADGROUP = 5
+    KEYWORD = 7
+
+
+class GroupId(APIType):
+
+    def __init__(self, ids, type):
+        # ID数组，值为null时表示获取全账户关键词
+        self.ids = ids
+        # 枚举，值为 IDTYPE
+        self.type = type
