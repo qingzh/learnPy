@@ -96,19 +96,20 @@ class AttributeDict(dict):
     定义了 property 但是会跳到dict内容
     只能把 dict 剥离出来当成一个内部变量？
     '''
-    __classhook__ = None
 
     def __init__(self, *args, **kwargs):
         """
         take care of nested dict
         """
         super(AttributeDict, self).__init__(*args, **kwargs)
-        if self.__classhook__ is None:
-            self.__classhook__ = self.__class__
         for key, value in self.iteritems():
             # Nested AttributeDict object
             # new object should be instance of self.__class__
             AttributeDict.__setitem__(self, key, value)
+
+    @property
+    def __classhook__(self):
+        return self.__class__
 
     __getattr__ = dict.__getitem__
 
@@ -117,7 +118,7 @@ class AttributeDict(dict):
         if isinstance(value, dict) and not isinstance(value, self.__classhook__) and issubclass(self.__classhook__, type(value)):
             value = self.__classhook__(value)
         # sequence
-        if isinstance(value, collections.Sequence):
+        if isinstance(value, collections.MutableSequence):
             for idx, item in enumerate(value):
                 if isinstance(item, dict) and not isinstance(item, self.__classhook__) and issubclass(self.__classhook__, type(item)):
                     value[idx] = self.__classhook__(item)
@@ -323,13 +324,7 @@ class APIResponse(AttributeDict):
         raise Exception('Undefined')
 
 
-class APIType(AttributeDict):
-    __classhook__ = AttributeDict
-
-    pass
-
-
-class APIData(AttributeDict):
+class APIDataMixin(AttributeDict):
 
     '''
     turn `apiType` to json string:
@@ -350,21 +345,33 @@ class APIData(AttributeDict):
     def __setitem__(self, key, value):
         if value == BLANK:
             # clear item
-            return self.pop(key)
+            return self.pop(key, BLANK)
 
-        if isinstance(value, collections.Sequence):
-            t = type(value[0])
-        else:
-            t = type(value)
+        t = value[0] if isinstance(
+            value, collections.MutableSequence) else value
         # 这里需要用 value[0].__name__
         # 因为 instance.__name__ 和 class.__name__ 是不一样的
-        if key == 'body' and issubclass(t, APIType):
-            if not isinstance(value, collections.Sequence):
+        if key == 'body' and issubclass(type(t), APIType) and hasattr(t, '__name__'):
+            if not isinstance(value, collections.MutableSequence):
                 value = [value]
-            super(APIData, self).__setitem__(
-                key, {value[0].__name__: value})
+            super(APIDataMixin, self).__setitem__(key, {t.__name__: value})
         else:
-            super(APIData, self).__setitem__(key, value)
+            super(APIDataMixin, self).__setitem__(key, value)
+
+
+class APIType(APIDataMixin):
+
+    '''
+    turn `apiType` to json string:
+    "apiTypes":[apiType]
+    '''
+
+    pass
+
+
+class APIData(APIDataMixin):
+
+    pass
 
 
 requests.models.json_dumps = json_dump_decorator(json.dumps)

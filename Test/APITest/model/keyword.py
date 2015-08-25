@@ -1,12 +1,13 @@
 # -*- coding:utf-8 -*-
 
 from .models import APIType, AttributeDict
+from TestCommon.models.const import BLANK
 
 
 class KeywordType(APIType):
     __name__ = 'keywordTypes'
 
-    def __init__(self, keywordId=None, adgroupId=None, keyword=None, price=None, destinationUrl=None, matchType=None, pause=None, status=None):
+    def __init__(self, keywordId=BLANK, adgroupId=BLANK, keyword=BLANK, price=BLANK, destinationUrl=BLANK, matchType=BLANK, pause=BLANK, status=BLANK):
         # 关键词ID
         self.keywordId = keywordId
         # 推广单元ID，每个单元最多20000个关键词
@@ -53,10 +54,32 @@ class GroupKeywordId(AttributeDict):
         self.keywordIds = keywordIds
 
 
+class IDTYPE(object):
+    CAMPAIGN = 3
+    ADGROUP = 5
+    KEYWORD = 7
+
+
+class GroupId(APIType):
+
+    def __init__(self, ids, type):
+        # ID数组，值为null时表示获取全账户关键词
+        self.ids = ids
+        # 枚举，值为 IDTYPE
+        self.type = type
+
+
+class KEYWORD_STATUS(object):
+    PAUSE = 0
+    AUDIT = 1
+    REFUSE = 2
+
+
 class StatusType(AttributeDict):
+    __name__ = 'keywordStatus'
 
     def __init__(self, id, adgroupId, campaignId, status):
-        # 该对象ID
+        # 关键词ID
         self.id = id
         # 该对象所属的单元ID
         self.adgroupId = adgroupId

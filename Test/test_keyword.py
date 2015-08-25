@@ -69,6 +69,7 @@ locals().update(api.keyword)
 
 _local_ = threading.local()
 GLOBAL = _local_.__dict__.setdefault('global', {})
+GLOBAL[TAG_TYPE] = {}
 
 #-------------------------------------------------------------------------
 
@@ -97,6 +98,23 @@ def _getAppIdByAdgroupId(adgroupId, server, user):
     return res.body
 
 
+def _compare_dict(a, b):
+    for key, value in a.iteritems():
+        if value is None:
+            continue
+        assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
+            key, value, b[key])
+
+
+def mount(obj):
+    def decorator(func):
+        obj.__dict__[func.__name__] = func
+
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+    return decorator
 #---------------------------------------------------------------
 #  添加操作
 #  正常添加
@@ -137,7 +155,7 @@ def _get_url(domain, tag):
 @formatter
 def test_addKeyword(server, user):
     '''
-    关键词：添加操作(2条子链)，预期结果：添加成功
+    关键词：添加操作(使用默认值)，预期结果：添加成功
     '''
     # 输入物料
     tag = user.get_tag(TAG_TYPE)
@@ -145,19 +163,24 @@ def test_addKeyword(server, user):
         keywordId=None,
         adgroupId=_get_adgroupId(server, user),
         keyword=gen_chinese_unicode(40),
-        price=0.3,
+        price=0.39,
         destinationUrl=_get_url(user.domain(server), tag),
-        matchType=0,
+        matchType=1,
         pause=True,
         status=None,
     )
+    GLOBAL[TAG_TYPE]['input'] = keyword
     res = addKeyword(
         server=server, header=user, body=keyword)
     assert_header(res.header, STATUS.SUCCESS)
     # 这里应该是查询数据库，对比数据
-    GLOBAL['keyword'] = {
-        'input': keyword, 'keywordId': res.body.keywordTypes[0].keywordId}
+    keyword.keywordId = res.body.keywordTypes[0].keywordId
+    GLOBAL[TAG_TYPE]['keywordId'] = keyword.keywordId
 
+
+#---------------------------------------------------------------
+#  测试查询操作 getKeyword(.*)
+#---------------------------------------------------------------
 
 @formatter
 def test_getKeywordId(server, user):
@@ -168,7 +191,7 @@ def test_getKeywordId(server, user):
         header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
     assert_header(res.header, STATUS.SUCCESS)
     assert set(res.body.groupKeywordIds[0].keywordIds) == set(
-        [GLOBAL['keyword']['keywordId']])
+        [GLOBAL[TAG_TYPE]['keywordId']])
 
 
 @formatter
@@ -177,87 +200,250 @@ def test_getKeywordByAdgroupId(server, user):
     关键词：获取单元ID下的所有关键词对象 getKeywordByAdgroupId
     '''
     res = getKeywordByAdgroupId(
-        header=user, server=server, body={'adgroupIds': [GLOBAL['keyword']['input']['adgroupId']]})
+        header=user, server=server, body={'adgroupIds': [GLOBAL[TAG_TYPE]['input']['adgroupId']]})
     assert_header(res.header, STATUS.SUCCESS)
-    keyword = res.body.groupKeywords[0]
-    # It's IMPORTANT to convert `keyword` to `KeywordType`
-    GLOBAL['keyword']['output'] = keyword
-    # TODO
-    # 后端传回来的price精度有问题
-    assert GLOBAL['keyword']['input'] <= keyword, 'Keyword content differ!\nExpected: %s\nActually: %s\n' % (
-        GLOBAL['keyword']['input'], keyword)
+    keyword = res.body.groupKeywords[0].keywordTypes[0]
+    _compare_dict(GLOBAL[TAG_TYPE]['input'], keyword)
 
 
-def _updateSublink_and_assert(server, user, sublink):
+#@formatter
+def test_getKeywordByKeywordId(server, user):
     '''
-    推广子链：更新操作，检查更新后的内容
+    关键词：获取单元ID下的所有关键词对象 getKeywordByKeywordId
     '''
-    if not isinstance(sublink, SublinkType):
-        sublink = SublinkType(**sublink)
-    sublinkId = sublink.sublinkId
-    res = updateSublink(header=user, server=server, body=sublink)
+    res = getKeywordByKeywordId(
+        header=user, server=server, body={'keywordIds': [GLOBAL[TAG_TYPE]['keywordId']]})
     assert_header(res.header, STATUS.SUCCESS)
-    res = getSublinkBySublinkId(
-        header=user, server=server, body={'sublinkIds': [sublinkId]})
-    res_sublink = res.body.sublinkTypes[0]
-    assert res_sublink == sublink, 'Sublink content differ!\nExpected: %s\nActually: %s\n' % (
-        sublink, res_sublink)
-    GLOBAL['sublink']['output'] = sublink
+    _compare_dict(GLOBAL[TAG_TYPE]['input'], res.body.keywordTypes[0])
+
+
+#---------------------------------------------------------------
+#  测试 getKeywordStatus
+#---------------------------------------------------------------
 
 
 @formatter
-def test_updateSublink_2to4(server, user):
+def test_getKeywordStatus(server, user):
     '''
-    推广子链：更新操作，2条变4条
+    测试了 4 种获取关键词状态方法
+    按全账户获取，按计划获取，按单元获取，按关键词ID获取
     '''
-    tag = user.get_tag(TAG_TYPE)
-    sublink = GLOBAL['sublink']['output']
-    sublink.update(
-        sublinkInfos=[
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/2to4')),
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/2to4')),
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/2to4')),
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/2to4')),
-        ],
-        pause=True,
-        status=0,
+    accountId = GroupId(
+        ids=None,
+        type=None,  # 3表示计划ID，5为单元id，7为关键词id
     )
-    _updateSublink_and_assert(server, user, sublink)
+    res_by_account = getKeywordStatus(
+        header=user, server=server, body=accountId)
+    assert_header(res_by_account.header, STATUS.SUCCESS)
+    res_by_account.body.keywordStatus.sort(key=lambda x: x.id)
+
+    campaignId = GroupId(
+        ids=user.get_campaignIds(server),
+        type=IDTYPE.CAMPAIGN
+    )
+    res_by_campaign = getKeywordStatus(
+        header=user, server=server, body=campaignId)
+    assert_header(res_by_campaign.header, STATUS.SUCCESS)
+    res_by_campaign.body.keywordStatus.sort(key=lambda x: x.id)
+
+    def assert_func(x, y, key):
+        assert x.body == y.body, 'KeywordStatus by %s differ!\n%s\n%s\n' % (
+            key, x.body, y.body)
+
+    assert_func(res_by_account, res_by_campaign, 'campaignIds')
+
+    adgroupId = GroupId(
+        ids=user.get_adgroupIds(server),
+        type=IDTYPE.ADGROUP
+    )
+    res_by_adgroup = getKeywordStatus(
+        header=user, server=server, body=adgroupId)
+    assert_header(res_by_adgroup.header, STATUS.SUCCESS)
+    res_by_adgroup.body.keywordStatus.sort(key=lambda x: x.id)
+    assert_func(res_by_account, res_by_adgroup, 'adgroupIds')
+
+    keywordId = GroupId(
+        ids=user.get_keywordIds(server),
+        type=IDTYPE.KEYWORD
+    )
+    res_by_keyword = getKeywordStatus(
+        header=user, server=server, body=keywordId)
+    assert_header(res_by_keyword.header, STATUS.SUCCESS)
+    res_by_keyword.body.keywordStatus.sort(key=lambda x: x.id)
+    assert_func(res_by_account, res_by_keyword, 'keywordIds')
+
+
+#---------------------------------------------------------------
+#  测试 getKeyword10Quality
+#---------------------------------------------------------------
 
 
 @formatter
-def test_updateSublink_4to3(server, user):
+def test_getKeyword10Quality(server, user):
     '''
-    推广子链：更新操作，4条变成3条
+    测试了 4 种获取关键词质量度方法
+    按全账户获取，按计划获取，按单元获取，按关键词ID获取
     '''
-    tag = user.get_tag(TAG_TYPE)
-    sublink = GLOBAL['sublink']['output']
-    sublink.update(
-        sublinkInfos=[
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/4to3')),
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/4to3')),
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/4to3')),
-        ],
-        pause=True,
-        status=0,
+    accountId = GroupId(
+        ids=None,
+        type=None,  # 3表示计划ID，5为单元id，7为关键词id
     )
-    _updateSublink_and_assert(server, user, sublink)
+    res_by_account = getKeyword10Quality(
+        header=user, server=server, body=accountId)
+    assert_header(res_by_account.header, STATUS.SUCCESS)
+    res_by_account.body.keyword10Quality.sort(key=lambda x: x.id)
+
+    campaignId = GroupId(
+        ids=user.get_campaignIds(server),
+        type=IDTYPE.CAMPAIGN
+    )
+    res_by_campaign = getKeyword10Quality(
+        header=user, server=server, body=campaignId)
+    assert_header(res_by_campaign.header, STATUS.SUCCESS)
+    res_by_campaign.body.keyword10Quality.sort(key=lambda x: x.id)
+
+    def assert_func(x, y, key):
+        assert x.body == y.body, 'Keyword10Quality by %s differ!\n%s\n%s\n' % (
+            key, x.body, y.body)
+
+    assert_func(res_by_account, res_by_campaign, 'campaignIds')
+
+    adgroupId = GroupId(
+        ids=user.get_adgroupIds(server),
+        type=IDTYPE.ADGROUP
+    )
+    res_by_adgroup = getKeyword10Quality(
+        header=user, server=server, body=adgroupId)
+    assert_header(res_by_adgroup.header, STATUS.SUCCESS)
+    res_by_adgroup.body.keyword10Quality.sort(key=lambda x: x.id)
+    assert_func(res_by_account, res_by_adgroup, 'adgroupIds')
+
+    keywordId = GroupId(
+        ids=user.get_keywordIds(server),
+        type=IDTYPE.KEYWORD
+    )
+    res_by_keyword = getKeyword10Quality(
+        header=user, server=server, body=keywordId)
+    assert_header(res_by_keyword.header, STATUS.SUCCESS)
+    res_by_keyword.body.keyword10Quality.sort(key=lambda x: x.id)
+    assert_func(res_by_account, res_by_keyword, 'keywordIds')
 
 
-def test_updateSublink(server, user):
-    res = getSublinkBySublinkId(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['sublink']['sublinkId']]})
+@mount(api.keyword)
+def test_getKeyword(server, user):
+    test_getKeywordId(server, user)
+    test_getKeywordByAdgroupId(server, user)
+    test_getKeywordByKeywordId(server, user)
+
+    test_getKeywordStatus(server, user)
+    test_getKeyword10Quality(server, user)
+
+#---------------------------------------------------------------
+#  测试更新操作 updateKeyword
+#---------------------------------------------------------------
+
+
+def _updateKeyword_by_dict(server, user, keywordId, change, expected):
+    # 获取修改后的关键词的期望结果
+    res = getKeywordByKeywordId(
+        header=user, server=server, body={'keywordIds': [keywordId]})
+    keyword = KeywordType(**res.body.keywordTypes[0])
+    keyword.update(expected)
+    # 修改关键词
+    change = KeywordType(**change)
+    change.update(keywordId=keywordId)
+    res = updateKeyword(server=server, header=user, body=change)
     assert_header(res.header, STATUS.SUCCESS)
-    GLOBAL['sublink']['output'] = res.body.sublinkTypes[0]
-    test_updateSublink_2to4(server, user)
-    test_updateSublink_4to3(server, user)
+    res_after = getKeywordByKeywordId(
+        header=user, server=server, body={'keywordIds': [keywordId]})
+    # 对比
+    _compare_dict(keyword, res_after.body.keywordTypes[0])
+
+
+@formatter
+def test_updateKeyword_unchange(server, user):
+    '''
+    关键词：更新操作，不做任何更新
+    '''
+    keyword = GLOBAL[TAG_TYPE]['output']
+    change = dict(
+        adgroupId=123456,
+        keyword=gen_chinese_unicode(60),
+        price=None,
+        destinationUrl=None,
+        matchType=None,
+        pause=None,
+        status=123,
+    )
+    _updateKeyword_by_dict(
+        server, user, keyword.keywordId, change, {})
+    # recovery
+    updateKeyword(server=server, header=user, body=keyword)
+
+
+@formatter
+def test_updateKeyword_clear_price(server, user):
+    '''
+    关键词：更新操作，取消关键词出价
+    '''
+    keyword = GLOBAL[TAG_TYPE]['output']
+    change = dict(price=0)
+    expected = dict(
+        price=api.adgroup.getAdgroupByAdgroupId(
+            server=server, header=user, body={
+                "adgroupIds": [keyword.adgroupId]}
+        ).body.adgroupTypes[0].maxPrice
+    )
+    _updateKeyword_by_dict(
+        server, user, keyword.keywordId, change, expected)
+    # recovery
+    updateKeyword(server=server, header=user, body=keyword)
+
+
+@formatter
+def test_updateKeyword_clear_destinationUrl(server, user):
+    '''
+    关键词：更新操作，取消目标URL
+    '''
+    keyword = GLOBAL[TAG_TYPE]['output']
+    change = dict(destinationUrl="$")
+    expected = dict(destinationUrl="")
+    _updateKeyword_by_dict(
+        server, user, keyword.keywordId, change, expected)
+    # recovery
+    updateKeyword(server=server, header=user, body=keyword)
+
+
+@formatter
+def test_activeKeyword(server, user):
+    '''
+    激活关键词 activateKeyword
+    '''
+    keyword = GLOBAL[TAG_TYPE]['output']
+    change = {'pause': True}
+    _updateKeyword_by_dict(server, user, keyword.keywordId, change, change)
+    res = activateKeyword(
+        header=user, server=server, body={"keywordIds": [keyword.keywordId]})
+    assert res.body.keywordTypes[
+        0].pause == False, 'Activate keyword failed at `%d`!' % keywordId
+    # recovery
+    updateKeyword(server=server, header=user, body=keyword)
+
+
+@mount(api.keyword)
+def test_updateKeyword(server, user):
+    GLOBAL[TAG_TYPE]['output'] = getKeywordByKeywordId(
+        header=user, server=server, body={'keywordIds': [GLOBAL[TAG_TYPE]['keywordId']]}).body.keywordTypes[0]
+
+    test_updateKeyword_unchange(server, user)
+    test_updateKeyword_clear_price(server, user)
+    test_updateKeyword_clear_destinationUrl(server, user)
+    test_activeKeyword(server, user)
+
+
+#-------------------------------------------------------------------------
+#  测试删除操作 deleteKeyword
+#-------------------------------------------------------------------------
 
 
 @formatter
@@ -273,199 +459,9 @@ def test_deleteSublink(server, user):
     ids = res.body.groupSublinkIds[0].sublinkIds
     assert [] == ids, 'Delete sublinkId failed!\n%s remain existing.\n' % (ids)
 
-
-@formatter
-def test_addSublink_four(server, user):
-    ''' 正常添加推广子链(4个子链)，预期结果：添加成功 '''
-    # 输入物料
-    raise UndefinedException
-
-
-#-------------------------------------------------------------------------
-#  推广APP
-#-------------------------------------------------------------------------
-
-@formatter
-def test_addApp(server, user):
-    '''
-    推广APP：添加操作
-    '''
-    # 输入物料
-    app = AppType(
-        appId=None,
-        adgroupId=_get_adgroupId(server, user),
-        appName=gen_chinese_unicode(8),
-        appLogo=image.PNG,
-        downloadAddrIOS='http://ios.com.cn/test123',
-        downloadAddrAndroid='http://android.com.cn/test123',
-        detailAddrAndroid='http://detail.android.com.cn/test123',
-        pause=True,
-        status=None
-    )
-    res = addApp(server=server, header=user, body=app)
-    assert_header(res.header, STATUS.SUCCESS)
-    '''
-    res = doRequest(getAppByAppId, server=server, user=user, body={
-        "appIds": [res.body.appTypes[0].appId]})
-    assert res.body.appTypes[
-        0] >= app, u'增加内容和传入不一致:\n%s\n%s\n' % (res.body, app)
-    '''
-    app.pop('imgFormat')
-    app.pop('appLogo')
-    GLOBAL['app'] = {'input': app, 'appId': res.body.appTypes[0].appId}
-
-
-@formatter
-def test_getAppId(server, user):
-    '''
-    推广APP：获取1个单元ID下的推广APP getAppIdByAdgroupId
-    '''
-    res = getAppIdByAdgroupId(
-        header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
-    assert_header(res.header, STATUS.SUCCESS)
-    assert set(res.body.groupAppIds[0].appIds) == set(
-        [GLOBAL['app']['appId']]), 'appId differ! Expected %s, got %s.\n' % (GLOBAL['app']['appId'], res.body.groupAppIds[0].appIds)
-
-
-@formatter
-def test_getAppId_(server, user):
-    '''
-    推广APP：获取多个单元ID下的推广APP getAppIdByAdgroupId
-    '''
-    raise UndefinedException
-
-
-@formatter
-def test_getApp(server, user):
-    '''
-    推广APP：根据APP ID查询 getAppByAppId
-    '''
-    res = getAppByAppId(
-        header=user, server=server, body={'appIds': [GLOBAL['app']['appId']]})
-    assert_header(res.header, STATUS.SUCCESS)
-    assert GLOBAL['app']['input'] <= res.body.appTypes[
-        0], 'App content differ!\nExpected: %s\nActually: %s\n' % (GLOBAL['app']['input'], res.body.appTypes[0])
-
-
-@formatter
-def test_deleteApp(server, user):
-    '''
-    推广APP：删除操作 deleteApp
-    '''
-    res = deleteSublink(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['app']['appId']], "newCreativeType": TYPE.APP})
-    assert_header(res.header, STATUS.SUCCESS)
-    res = getAppIdByAdgroupId(
-        header=user, server=server, body={"adgroupIds": [_get_adgroupId(server, user)]})
-    ids = res.body.groupAppIds[0].appIds
-    assert [] == ids, 'Delete appId failed!\n%s remain existing.\n' % (ids)
-
-
-#-------------------------------------------------------------------------
-#  推广电话
-#-------------------------------------------------------------------------
-
-@formatter
-def test_addPhone(server, user):
-    '''
-    推广电话：添加操作
-    '''
-    phone = PhoneType(
-        phoneId=None,
-        phoneNum='010-%s' % (
-            10000000 + int(user.get_tag(TAG_TYPE), 16) % 10000007),
-        adgroupId=_get_adgroupId(server, user),
-        pause=True,
-        status=None,
-    )
-    res = addPhone(server=server, header=user, body=phone)
-    assert_header(res.header, STATUS.SUCCESS)
-    '''
-    res = doRequest(getPhoneByPhoneId, server=server, user=user, body={
-        "phoneIds": [res.body.phoneTypes[0].phoneId]})
-    assert res.body.phoneTypes[
-        0] >= phone, u'增加内容和传入不一致:\n%s\n%s\n' % (res.body, phone)
-    '''
-    GLOBAL['phone'] = {
-        'input': phone, 'phoneId': res.body.phoneTypes[0].phoneId}
-
-
-@formatter
-def test_getPhoneId(server, user):
-    '''
-    推广电话：获取单元ID下的推广电话 getPhoneIdByAdgroupId
-    '''
-    res = getPhoneIdByAdgroupId(
-        header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
-    assert_header(res.header, STATUS.SUCCESS)
-    assert set(res.body.groupPhoneIds[0].phoneIds) == set(
-        [GLOBAL['phone']['phoneId']])
-
-
-@formatter
-def test_getPhone(server, user):
-    '''
-    推广电话：根据电话ID查询 getPhoneByPhoneId
-    '''
-    res = getPhoneByPhoneId(
-        header=user, server=server, body={'phoneIds': [GLOBAL['phone']['phoneId']]})
-    assert_header(res.header, STATUS.SUCCESS)
-    assert GLOBAL['phone']['input'] <= res.body.phoneTypes[
-        0], 'Phone content differ!\nExpected: %s\nActually: %s\n' % (GLOBAL['phone']['input'], res.body.phoneTypes[0])
-
-
-@formatter
-def test_deletePhone(server, user):
-    '''
-    推广电话：删除操作 deletePhone
-    '''
-    res = deleteSublink(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['phone']['phoneId']], "newCreativeType": TYPE.PHONE})
-    assert_header(res.header, STATUS.SUCCESS)
-    res = getPhoneIdByAdgroupId(
-        header=user, server=server, body={"adgroupIds": [_get_adgroupId(server, user)]})
-    ids = res.body.groupPhoneIds[0].phoneIds
-    assert [] == ids, 'Delete phoneId failed!\n%s remain existing.\n' % (ids)
-
-
-def mount(obj):
-    def decorator(func):
-        obj.__dict__[func.__name__] = func
-
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        return wrapper
-    return decorator
-
 #-------------------------------------------------------------------------
 #  测试入口
 #-------------------------------------------------------------------------
-
-
-@mount(api.newCreative)
-def test_app(server, user):
-    test_addApp(server, user)
-    test_getAppId(server, user)
-    test_getApp(server, user)
-    test_deleteApp(server, user)
-
-
-@mount(api.newCreative)
-def test_phone(server, user):
-    test_addPhone(server, user)
-    test_getPhoneId(server, user)
-    test_getPhone(server, user)
-    test_deletePhone(server, user)
-
-
-@mount(api.newCreative)
-def test_sublink(server, user):
-    test_addSublink(server, user)
-    test_getSublinkId(server, user)
-    test_getSublink(server, user)
-    test_updateSublink(server, user)
-    test_deleteSublink(server, user)
 
 
 @mount(api.newCreative)
@@ -474,9 +470,10 @@ def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
     results = ThreadLocal.get_results()
     len_before = len(results)
 
-    test_app(server, user)
-    test_phone(server, user)
-    test_sublink(server, user)
+    test_addKeyword(server, user)
+    test_getKeyword(server, user)
+    test_updateKeyword(server, user)
+    # test_deleteKeyword(server, user)
 
     flag = all(
         (results[i].status == 'PASS' for i in range(len_before, len(results))))

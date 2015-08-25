@@ -103,7 +103,7 @@ class UserObject(AttributeDict):
         # body is ignore
         data = APIData(header=self)
         res = api.campaign.getAllCampaignId.response(server, json=data)
-        return res.body
+        return res.body.campaignIds
 
     def get_campaignAdgroupIds(self, server):
         # body is ignore
@@ -116,6 +116,15 @@ class UserObject(AttributeDict):
         if not campaign_adgroups['campaignAdgroupIds']:
             return []
         return reduce(lambda x, y: x + y, (x['adgroupIds']for x in campaign_adgroups['campaignAdgroupIds']))
+
+    def get_keywordIds(self, server):
+        data = self._gen_adgroupIds(server)
+        if data is None:
+            return []
+        res = api.keyword.getKeywordIdByAdgroupId(server=server, json=data)
+        if not res.body['groupKeywordIds']:
+            return []
+        return reduce(lambda x, y: x + y, (x['keywordIds']for x in res.body['groupKeywordIds']))
 
     def _gen_adgroupIds(self, server):
         ids = self.get_adgroupIds(server)

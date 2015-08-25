@@ -126,7 +126,11 @@ class AttributeDict(dict):
             I think there's some trap in not using `super`
             I suggest we do `super` and override `init` in ReadOnlyDict
             '''
-            AttributeDict.__setitem__(key, value)
+            AttributeDict.__setitem__(self, key, value)
+
+    @property
+    def __classhook__(self):
+        return self.__class__
 
     def __getattr__(self, key):
         ''' What's the difference vs.
@@ -136,13 +140,13 @@ class AttributeDict(dict):
 
     def __setitem__(self, key, value):
         # Nested AttributeDict object
-        if isinstance(value, dict) and not isinstance(value, self.__class__) and issubclass(self.__class__, type(value)):
-            value = self.__class__(value)
+        if isinstance(value, dict) and not isinstance(value, self.__classhook__) and issubclass(self.__classhook__, type(value)):
+            value = self.__classhook__(value)
         # sequence
         if isinstance(value, collections.Sequence):
             for idx, item in enumerate(value):
-                if isinstance(item, dict) and not isinstance(item, self.__class__) and issubclass(self.__class__, type(item)):
-                    value[idx] = self.__class__(item)
+                if isinstance(item, dict) and not isinstance(item, self.__classhook__) and issubclass(self.__classhook__, type(item)):
+                    value[idx] = self.__classhook__(item)
         super(AttributeDict, self).__setitem__(key, value)
 
     def __setattr__(self, key, value):
@@ -165,6 +169,9 @@ class AttributeDict(dict):
         '''
         super(AttributeDict, self).update(*args, **kwargs)
         return self
+
+    def copy(self):
+        return type(self)(self)
 
     def json(self, allow_null=None, filter=None, header=False):
         '''
@@ -337,6 +344,7 @@ class SlotsMeta(type):
 
 
 class SlotsDict(KeyImmutableDict):
+    __classhook__ = AttributeDict
 
     def __init__(self, *args, **kwargs):
         # TODO: not compatible with nested dict
