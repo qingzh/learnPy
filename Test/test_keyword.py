@@ -7,7 +7,7 @@ __author__ = 'Qing Zhang'
 
 from APITest.model.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
-from APITest.model.newCreative import *
+from APITest.model.keyword import *
 from APITest.settings import USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
@@ -21,10 +21,11 @@ from TestCommon.exceptions import UndefinedException
 import threading
 from datetime import datetime
 import logging
+from TestCommon.utils import gen_chinese_unicode
 ##########################################################################
 #    log settings
 
-TAG_TYPE = u'附加创意'
+TAG_TYPE = u'关键词'
 TIMESTAMP = datetime.now().strftime('%Y%m%d%H%M%S%f')
 LOG_DIR = r'.'
 LOG_FILENAME = '%s/%s_%s.log' % (LOG_DIR, TAG_TYPE, TIMESTAMP)
@@ -46,27 +47,19 @@ DEFAULT_USER = UserObject(**USERS.get('ShenmaPM2.5'))
 
 
 '''
-    "newCreative": {
-        "getSublinkIdByAdgroupId": APIRequest(method=post, uri='/api/newCreative/getSublinkIdByAdgroupId'),
-        "getSublinkBySublinkId": APIRequest(method=post, uri='/api/newCreative/getSublinkBySublinkId'),
-        "addSublink": APIRequest(method=post, uri='/api/newCreative/addSublink'),
-        "updateSublink": APIRequest(method=post, uri='/api/newCreative/updateSublink'),
-
-        # 删除任何指定的附加创意都用此方法
-        "deleteSublink": APIRequest(method=delete, uri='/api/newCreative/deleteSublink'),
-
-        "getPhoneIdByAdgroupId": APIRequest(method=post, uri='/api/newCreative/getPhoneIdByAdgroupId'),
-        "getPhoneByPhoneId": APIRequest(method=post, uri='/api/newCreative/getPhoneByPhoneId'),
-        "addPhone": APIRequest(method=post, uri='/api/newCreative/addPhone'),
-        "updatePhone": APIRequest(method=post, uri='/api/newCreative/updatePhone'),
-
-        "getAppIdByAdgroupId": APIRequest(method=post, uri='/api/newCreative/getAppIdByAdgroupId'),
-        "getAppByAppId": APIRequest(method=post, uri='/api/newCreative/getAppByAppId'),
-        "addApp": APIRequest(method=post, uri='/api/newCreative/addApp'),
-        "updateApp": APIRequest(method=post, uri='/api/newCreative/updateApp'),
-    }
+"keyword": {
+    "getKeywordIdByAdgroupId": APIRequest(method=post, uri='/api/keyword/getKeywordIdByAdgroupId'),
+    "getKeywordByAdgroupId": APIRequest(method=post, uri='/api/keyword/getKeywordByAdgroupId'),
+    "getKeywordByKeywordId": APIRequest(method=post, uri='/api/keyword/getKeywordByKeywordId'),
+    "getKeywordStatus": APIRequest(method=post, uri='/api/keyword/getKeywordStatus'),
+    "getKeyword10Quality": APIRequest(method=post, uri='/api/keyword/getKeyword10Quality'),
+    "addKeyword": APIRequest(method=post, uri='/api/keyword/addKeyword'),
+    "updateKeyword": APIRequest(method=post, uri='/api/keyword/updateKeyword'),
+    "deleteKeyword": APIRequest(method=delete, uri='/api/keyword/deleteKeyword'),
+    "activateKeyword": APIRequest(method=post, uri='/api/keyword/activateKeyword'),
+}
 '''
-locals().update(api.newCreative)
+locals().update(api.keyword)
 
 #-------------------------------------------------------------------------
 # 准备测试数据
@@ -142,63 +135,57 @@ def _get_url(domain, tag):
 
 
 @formatter
-def test_addSublink(server, user):
+def test_addKeyword(server, user):
     '''
-    推广子链：添加操作(2条子链)，预期结果：添加成功
+    关键词：添加操作(2条子链)，预期结果：添加成功
     '''
     # 输入物料
     tag = user.get_tag(TAG_TYPE)
-    sublink = SublinkType(
-        sublinkId=None,
-        sublinkInfos=[
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag)),
-            SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag)),
-        ],
+    keyword = KeywordType(
+        keywordId=None,
         adgroupId=_get_adgroupId(server, user),
+        keyword=gen_chinese_unicode(40),
+        price=0.3,
+        destinationUrl=_get_url(user.domain(server), tag),
+        matchType=0,
         pause=True,
         status=None,
     )
-    res = addSublink(
-        server=server, header=user, body=sublink)
+    res = addKeyword(
+        server=server, header=user, body=keyword)
     assert_header(res.header, STATUS.SUCCESS)
     # 这里应该是查询数据库，对比数据
-    '''
-    res = doRequest(getSublinkBySublinkId, server=server, user=user, body={
-        "sublinkIds": [res.body.sublinkTypes[0].sublinkId]})
-    assert res.body.sublinkTypes[
-        0] >= sublink, u'增加内容和传入不一致:\n%s\n%s\n' % (res.body, sublink)
-    '''
-    GLOBAL['sublink'] = {
-        'input': sublink, 'sublinkId': res.body.sublinkTypes[0].sublinkId}
+    GLOBAL['keyword'] = {
+        'input': keyword, 'keywordId': res.body.keywordTypes[0].keywordId}
 
 
 @formatter
-def test_getSublinkId(server, user):
+def test_getKeywordId(server, user):
     '''
-    推广子链：通过单元ID查询 getSublinkBySublinkId
+    关键词：获取单元ID下的关键词ID getKeywordIdByAdgroupId
     '''
-    res = getSublinkIdByAdgroupId(
+    res = getKeywordIdByAdgroupId(
         header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
     assert_header(res.header, STATUS.SUCCESS)
-    assert set(res.body.groupSublinkIds[0].sublinkIds) == set(
-        [GLOBAL['sublink']['sublinkId']])
+    assert set(res.body.groupKeywordIds[0].keywordIds) == set(
+        [GLOBAL['keyword']['keywordId']])
 
 
 @formatter
-def test_getSublink(server, user):
+def test_getKeywordByAdgroupId(server, user):
     '''
-    推广子链：通过子链ID查询 getSublinkBySublinkId
+    关键词：获取单元ID下的所有关键词对象 getKeywordByAdgroupId
     '''
-    res = getSublinkBySublinkId(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['sublink']['sublinkId']]})
+    res = getKeywordByAdgroupId(
+        header=user, server=server, body={'adgroupIds': [GLOBAL['keyword']['input']['adgroupId']]})
     assert_header(res.header, STATUS.SUCCESS)
-    sublink = res.body.sublinkTypes[0]
-    # It's IMPORTANT to convert `sublink` to `SublinkType`
-    GLOBAL['sublink']['output'] = sublink
-    assert GLOBAL['sublink']['input'] <= sublink and sublink.sublinkInfos == GLOBAL['sublink']['input']['sublinkInfos'], 'Sublink content differ!\nExpected: %s\nActually: %s\n' % (
-        GLOBAL['sublink']['input'], sublink)
+    keyword = res.body.groupKeywords[0]
+    # It's IMPORTANT to convert `keyword` to `KeywordType`
+    GLOBAL['keyword']['output'] = keyword
+    # TODO
+    # 后端传回来的price精度有问题
+    assert GLOBAL['keyword']['input'] <= keyword, 'Keyword content differ!\nExpected: %s\nActually: %s\n' % (
+        GLOBAL['keyword']['input'], keyword)
 
 
 def _updateSublink_and_assert(server, user, sublink):
