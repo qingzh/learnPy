@@ -7,7 +7,7 @@ __author__ = 'Qing Zhang'
 
 from APITest.model.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
-from APITest.model.keyword import *
+from APITest.model.creative import *
 from APITest.settings import USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
@@ -55,7 +55,7 @@ DEFAULT_USER = UserObject(**USERS.get('ShenmaPM2.5'))
     "addCreative": APIRequest(method=post, uri='/api/creative/addCreative'),
     "updateCreative": APIRequest(method=post, uri='/api/creative/updateCreative'),
     "deleteCreative": APIRequest(method=delete, uri='/api/creative/deleteCreative'),
-    # 区别于activate keywords
+    # 区别于activate creatives
     "activeCreative": APIRequest(method=post, uri='/api/creative/activeCreative'),
 }
 '''
@@ -185,7 +185,7 @@ def test_addCreative(server, user):
 
 
 #---------------------------------------------------------------
-#  测试查询操作 getKeyword(.*)
+#  测试查询操作 getCreative(.*)
 #---------------------------------------------------------------
 
 @formatter
@@ -294,106 +294,106 @@ def test_getCreative(server, user):
 #---------------------------------------------------------------
 
 
-def _updateKeyword_by_dict(server, user, keywordId, change, expected):
+def _update_by_dict(server, user, creativeId, change, expected):
     # 获取修改后的关键词的期望结果
-    res = getKeywordByKeywordId(
-        header=user, server=server, body={'keywordIds': [keywordId]})
-    keyword = KeywordType(**res.body.keywordTypes[0])
-    keyword.update(expected)
+    res = getCreativeByCreativeId(
+        header=user, server=server, body={'creativeIds': [creativeId]})
+    creative = CreativeType(**res.body.creativeTypes[0])
+    creative.update(expected)
     # 修改关键词
-    change = KeywordType(**change)
-    change.update(keywordId=keywordId)
-    res = updateKeyword(server=server, header=user, body=change)
+    change = CreativeType(**change)
+    change.update(creativeId=creativeId)
+    res = updateCreative(server=server, header=user, body=change)
     assert_header(res.header, STATUS.SUCCESS)
-    res_after = getKeywordByKeywordId(
-        header=user, server=server, body={'keywordIds': [keywordId]})
+    res_after = getCreativeByCreativeId(
+        header=user, server=server, body={'creativeIds': [creativeId]})
     # 对比
-    _compare_dict(keyword, res_after.body.keywordTypes[0])
+    _compare_dict(creative, res_after.body.creativeTypes[0])
 
 
 @formatter
-def test_updateKeyword_unchange(server, user):
+def test_updateCreative_unchange(server, user):
     '''
     关键词：更新操作，不做任何更新
     '''
-    keyword = GLOBAL[TAG_TYPE]['output']
+    creative = GLOBAL[TAG_TYPE]['output']
     change = dict(
         adgroupId=123456,
-        keyword=gen_chinese_unicode(60),
+        creative=gen_chinese_unicode(60),
         price=None,
         destinationUrl=None,
         matchType=None,
         pause=None,
         status=123,
     )
-    _updateKeyword_by_dict(
-        server, user, keyword.keywordId, change, {})
+    _update_by_dict(
+        server, user, creative.creativeId, change, {})
     # recovery
-    updateKeyword(server=server, header=user, body=keyword)
+    updateCreative(server=server, header=user, body=creative)
 
 
 @formatter
-def test_updateKeyword_clear_price(server, user):
+def test_updateCreative_clear_price(server, user):
     '''
     关键词：更新操作，取消关键词出价
     '''
-    keyword = GLOBAL[TAG_TYPE]['output']
+    creative = GLOBAL[TAG_TYPE]['output']
     change = dict(price=0)
     expected = dict(
         price=api.adgroup.getAdgroupByAdgroupId(
             server=server, header=user, body={
-                "adgroupIds": [keyword.adgroupId]}
+                "adgroupIds": [creative.adgroupId]}
         ).body.adgroupTypes[0].maxPrice
     )
-    _updateKeyword_by_dict(
-        server, user, keyword.keywordId, change, expected)
+    _update_by_dict(
+        server, user, creative.creativeId, change, expected)
     # recovery
-    updateKeyword(server=server, header=user, body=keyword)
+    updateCreative(server=server, header=user, body=creative)
 
 
 @formatter
-def test_updateKeyword_clear_destinationUrl(server, user):
+def test_updateCreative_clear_destinationUrl(server, user):
     '''
     关键词：更新操作，取消目标URL
     '''
-    keyword = GLOBAL[TAG_TYPE]['output']
+    creative = GLOBAL[TAG_TYPE]['output']
     change = dict(destinationUrl="$")
     expected = dict(destinationUrl="")
-    _updateKeyword_by_dict(
-        server, user, keyword.keywordId, change, expected)
+    _update_by_dict(
+        server, user, creative.creativeId, change, expected)
     # recovery
-    updateKeyword(server=server, header=user, body=keyword)
+    updateCreative(server=server, header=user, body=creative)
 
 
 @formatter
-def test_activeKeyword(server, user):
+def test_activeCreative(server, user):
     '''
-    激活关键词 activateKeyword
+    激活关键词 activateCreative
     '''
-    keyword = GLOBAL[TAG_TYPE]['output']
+    creative = GLOBAL[TAG_TYPE]['output']
     change = {'pause': True}
-    _updateKeyword_by_dict(server, user, keyword.keywordId, change, change)
-    res = activateKeyword(
-        header=user, server=server, body={"keywordIds": [keyword.keywordId]})
-    assert res.body.keywordTypes[
-        0].pause == False, 'Activate keyword failed at `%d`!' % keywordId
+    _update_by_dict(server, user, creative.creativeId, change, change)
+    res = activateCreative(
+        header=user, server=server, body={"creativeIds": [creative.creativeId]})
+    assert res.body.creativeTypes[
+        0].pause == False, 'Activate creative failed at `%d`!' % creativeId
     # recovery
-    updateKeyword(server=server, header=user, body=keyword)
+    updateCreative(server=server, header=user, body=creative)
 
 
-@mount(api.keyword)
-def test_updateKeyword(server, user):
-    GLOBAL[TAG_TYPE]['output'] = getKeywordByKeywordId(
-        header=user, server=server, body={'keywordIds': [GLOBAL[TAG_TYPE]['keywordId']]}).body.keywordTypes[0]
+@mount(api.creative)
+def test_updateCreative(server, user):
+    GLOBAL[TAG_TYPE]['output'] = getCreativeByCreativeId(
+        header=user, server=server, body={'creativeIds': [GLOBAL[TAG_TYPE]['creativeId']]}).body.creativeTypes[0]
 
-    test_updateKeyword_unchange(server, user)
-    test_updateKeyword_clear_price(server, user)
-    test_updateKeyword_clear_destinationUrl(server, user)
-    test_activeKeyword(server, user)
+    test_updateCreative_unchange(server, user)
+    test_updateCreative_clear_price(server, user)
+    test_updateCreative_clear_destinationUrl(server, user)
+    test_activeCreative(server, user)
 
 
 #-------------------------------------------------------------------------
-#  测试删除操作 deleteKeyword
+#  测试删除操作 deleteCreative
 #-------------------------------------------------------------------------
 
 
@@ -421,10 +421,10 @@ def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
     results = ThreadLocal.get_results()
     len_before = len(results)
 
-    test_addKeyword(server, user)
-    test_getKeyword(server, user)
-    test_updateKeyword(server, user)
-    # test_deleteKeyword(server, user)
+    test_addCreative(server, user)
+    test_getCreative(server, user)
+    test_updateCreative(server, user)
+    # test_deleteCreative(server, user)
 
     flag = all(
         (results[i].status == 'PASS' for i in range(len_before, len(results))))
