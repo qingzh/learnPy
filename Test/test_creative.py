@@ -5,23 +5,24 @@
 __version__ = 1.0
 __author__ = 'Qing Zhang'
 
-from APITest.model.models import (APIData, AttributeDict)
+from APITest.models.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
-from APITest.model.creative import *
+from APITest.models.creative import *
 from APITest.settings import USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
 import collections
 from TestCommon.utils import formatter
-from APITest.model import image
-from APITest.model.user import UserObject
-from APITest.model.const import STATUS
+from APITest.models import image
+from APITest.models.user import UserObject
+from APITest.models.const import STATUS
 from TestCommon import ThreadLocal
 from TestCommon.exceptions import UndefinedException
 import threading
 from datetime import datetime
 import logging
 from TestCommon.utils import gen_chinese_unicode
+import urlparse
 ##########################################################################
 #    log settings
 
@@ -43,7 +44,7 @@ log.addHandler(output_file)
 ##########################################################################
 
 SERVER = settings.SERVER.BETA
-DEFAULT_USER = UserObject(**USERS.get('ShenmaPM2.5'))
+DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 
 '''
@@ -56,7 +57,7 @@ DEFAULT_USER = UserObject(**USERS.get('ShenmaPM2.5'))
     "updateCreative": APIRequest(method=post, uri='/api/creative/updateCreative'),
     "deleteCreative": APIRequest(method=delete, uri='/api/creative/deleteCreative'),
     # 区别于activate creatives
-    "activeCreative": APIRequest(method=post, uri='/api/creative/activeCreative'),
+    "activateCreative": APIRequest(method=post, uri='/api/creative/activeCreative'),
 }
 '''
 locals().update(api.creative)
@@ -145,9 +146,6 @@ def _delete_adgroupId(server, user):
     tag_dict.clear()
 
 
-import urlparse
-
-
 def _get_url(domain, tag):
     return urlparse.urljoin(domain, tag)
 
@@ -159,7 +157,7 @@ def _get_hostname(domain):
 @formatter
 def test_addCreative(server, user):
     '''
-    关键词：添加操作(使用默认值)，预期结果：添加成功
+    创意：添加操作(使用默认值)，预期结果：添加成功
     '''
     # 输入物料
     tag = user.get_tag(TAG_TYPE)
@@ -169,9 +167,9 @@ def test_addCreative(server, user):
         adgroupId=_get_adgroupId(server, user),
         title=gen_chinese_unicode(50),
         description1=gen_chinese_unicode(120),
-        destinationUrl=_get_hostname(domain),
-        displayUrl=_get_url(domain, tag),
-        pause=True,
+        destinationUrl=_get_url(domain, tag),
+        displayUrl=None,
+        pause=None,
         status=None,
     )
     GLOBAL[TAG_TYPE]['input'] = creative
@@ -180,8 +178,15 @@ def test_addCreative(server, user):
     assert_header(res.header, STATUS.SUCCESS)
     # 这里应该是查询数据库，对比数据
 
-    creative.creativeId = res.body.creativeTypes[0].creativeId
+    creative.update(
+        creativeId=res.body.creativeTypes[0].creativeId,
+        displayUrl=_get_hostname(creative.destinationUrl),
+        pause=False,
+    )
     GLOBAL[TAG_TYPE]['creativeId'] = creative.creativeId
+    res_after = getCreativeByCreativeId(
+        server=server, header=user, body={"creativeIds": [creative.creativeId]})
+    _compare_dict(creative, res_after.body.creativeTypes[0])
 
 
 #---------------------------------------------------------------
@@ -194,7 +199,7 @@ def test_getCreativeId(server, user):
     创意：获取单元ID下的创意ID getCreativeIdByAdgroupId
     '''
     res = getCreativeIdByAdgroupId(
-        header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
+        header=user, body={'adgroupIds': [GLOBAL[TAG_TYPE]['input']['adgroupId']]}, server=server)
     assert_header(res.header, STATUS.SUCCESS)
     assert set(res.body.groupCreativeIds[0].creativeIds) == set(
         [GLOBAL[TAG_TYPE]['creativeId']])
@@ -212,10 +217,10 @@ def test_getCreativeByAdgroupId(server, user):
     _compare_dict(GLOBAL[TAG_TYPE]['input'], creative)
 
 
-#@formatter
+@formatter
 def test_getCreativeByCreativeId(server, user):
     '''
-    创意：获取单元ID下的所有创意对象 getCreativeByCreativeId
+    创意：通过创意ID获取创意对象 getCreativeByCreativeId
     '''
     res = getCreativeByCreativeId(
         header=user, server=server, body={'creativeIds': [GLOBAL[TAG_TYPE]['creativeId']]})
@@ -231,12 +236,12 @@ def test_getCreativeByCreativeId(server, user):
 @formatter
 def test_getCreativeStatus(server, user):
     '''
-    测试了 4 种获取关键词状态方法
-    按全账户获取，按计划获取，按单元获取，按关键词ID获取
+    测试了 4 种获取创意状态方法
+    按全账户获取，按计划获取，按单元获取，按创意ID获取
     '''
     accountId = GroupId(
         ids=None,
-        type=None,  # 3表示计划ID，5为单元id，7为关键词id
+        type=None,  # 3表示计划ID，5为单元id，7为创意id
     )
     res_by_account = getCreativeStatus(
         header=user, server=server, body=accountId)
@@ -286,21 +291,20 @@ def test_getCreative(server, user):
     test_getCreativeByCreativeId(server, user)
 
     test_getCreativeStatus(server, user)
-    test_getCreative10Quality(server, user)
 
 #---------------------------------------------------------------
 #  测试更新操作 updateCreative
-#  和 关键词更新很不一样！
+#  和 创意更新很不一样！
 #---------------------------------------------------------------
 
 
 def _update_by_dict(server, user, creativeId, change, expected):
-    # 获取修改后的关键词的期望结果
+    # 获取修改后的创意的期望结果
     res = getCreativeByCreativeId(
         header=user, server=server, body={'creativeIds': [creativeId]})
     creative = CreativeType(**res.body.creativeTypes[0])
     creative.update(expected)
-    # 修改关键词
+    # 修改创意
     change = CreativeType(**change)
     change.update(creativeId=creativeId)
     res = updateCreative(server=server, header=user, body=change)
@@ -314,17 +318,17 @@ def _update_by_dict(server, user, creativeId, change, expected):
 @formatter
 def test_updateCreative_unchange(server, user):
     '''
-    关键词：更新操作，不做任何更新
+    创意：更新操作，不做任何更新
     '''
     creative = GLOBAL[TAG_TYPE]['output']
     change = dict(
         adgroupId=123456,
-        creative=gen_chinese_unicode(60),
-        price=None,
+        title=None,
+        description1=None,
         destinationUrl=None,
-        matchType=None,
+        displayUrl=None,
         pause=None,
-        status=123,
+        status=None,
     )
     _update_by_dict(
         server, user, creative.creativeId, change, {})
@@ -333,18 +337,17 @@ def test_updateCreative_unchange(server, user):
 
 
 @formatter
-def test_updateCreative_clear_price(server, user):
+def test_updateCreative_set_title_max_length(server, user):
     '''
-    关键词：更新操作，取消关键词出价
+    创意：更新描述，测试通配符和换行符
     '''
     creative = GLOBAL[TAG_TYPE]['output']
-    change = dict(price=0)
-    expected = dict(
-        price=api.adgroup.getAdgroupByAdgroupId(
-            server=server, header=user, body={
-                "adgroupIds": [creative.adgroupId]}
-        ).body.adgroupTypes[0].maxPrice
-    )
+    change = dict(description1='{%s}\n{%s}\n{%s}' % (
+        gen_chinese_unicode(40),
+        gen_chinese_unicode(40),
+        gen_chinese_unicode(40)
+    ))
+    expected = dict(description1=change['description1'].replace('\n', ''))
     _update_by_dict(
         server, user, creative.creativeId, change, expected)
     # recovery
@@ -352,23 +355,29 @@ def test_updateCreative_clear_price(server, user):
 
 
 @formatter
-def test_updateCreative_clear_destinationUrl(server, user):
+def test_updateCreative_set_title_min_length(server, user):
     '''
-    关键词：更新操作，取消目标URL
+    创意：更新描述，测试包含通配符总长度为8，期望结果：错误提示
     '''
     creative = GLOBAL[TAG_TYPE]['output']
-    change = dict(destinationUrl="$")
-    expected = dict(destinationUrl="")
-    _update_by_dict(
-        server, user, creative.creativeId, change, expected)
-    # recovery
-    updateCreative(server=server, header=user, body=creative)
+    change = dict(
+        description1='{%s}\n{%s}\n{%s}' % (
+            gen_chinese_unicode(2),
+            gen_chinese_unicode(2),
+            gen_chinese_unicode(2)
+        ),
+        creativeId=creative.creativeId
+    )
+    res = updateCreative(
+        server=server, header=user, body=CreativeType(**change))
+    assert_header(res.header, STATUS.FAIL)
+    assert 901843 in res.codes
 
 
 @formatter
 def test_activeCreative(server, user):
     '''
-    激活关键词 activateCreative
+    激活创意 activateCreative
     '''
     creative = GLOBAL[TAG_TYPE]['output']
     change = {'pause': True}
@@ -387,8 +396,8 @@ def test_updateCreative(server, user):
         header=user, server=server, body={'creativeIds': [GLOBAL[TAG_TYPE]['creativeId']]}).body.creativeTypes[0]
 
     test_updateCreative_unchange(server, user)
-    test_updateCreative_clear_price(server, user)
-    test_updateCreative_clear_destinationUrl(server, user)
+    test_updateCreative_set_title_max_length(server, user)
+    test_updateCreative_set_title_min_length(server, user)
     test_activeCreative(server, user)
 
 

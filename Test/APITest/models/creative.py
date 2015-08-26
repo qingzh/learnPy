@@ -1,9 +1,8 @@
 # -*- coding:utf-8 -*-
 
 from .models import APIType, APIData
+from .const import IDTYPE
 from TestCommon.models.const import BLANK
-
-__all__ = ['creativeType', 'GroupCreative', 'GroupCreativeId', 'StatusType']
 
 
 class CreativeType(APIType):
@@ -68,12 +67,6 @@ class StatusType(APIData):
         # 该对象的状态
         # 0：暂停推广；1：审核中；2：不宜推广；5：推广中
         self.status = status
-
-
-class IDTYPE(object):
-    CAMPAIGN = 3
-    ADGROUP = 5
-    KEYWORD = 7
 
 
 class GroupId(APIType):

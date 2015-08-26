@@ -5,17 +5,16 @@
 __version__ = 1.0
 __author__ = 'Qing Zhang'
 
-from APITest.model.models import (APIData, AttributeDict)
+from APITest.models.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
-from APITest.model.keyword import *
+from APITest.models.keyword import *
 from APITest.settings import USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
 import collections
 from TestCommon.utils import formatter
-from APITest.model import image
-from APITest.model.user import UserObject
-from APITest.model.const import STATUS
+from APITest.models.user import UserObject
+from APITest.models.const import STATUS
 from TestCommon import ThreadLocal
 from TestCommon.exceptions import UndefinedException
 import threading
@@ -43,7 +42,7 @@ log.addHandler(output_file)
 ##########################################################################
 
 SERVER = settings.SERVER.BETA
-DEFAULT_USER = UserObject(**USERS.get('ShenmaPM2.5'))
+DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 
 '''
@@ -190,8 +189,9 @@ def test_getKeywordId(server, user):
     res = getKeywordIdByAdgroupId(
         header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
     assert_header(res.header, STATUS.SUCCESS)
-    assert set(res.body.groupKeywordIds[0].keywordIds) == set(
-        [GLOBAL[TAG_TYPE]['keywordId']])
+    id_set = set(res.body.groupKeywordIds[0].keywordIds)
+    assert id_set >= set([GLOBAL[TAG_TYPE]['keywordId']]), 'Expected: %s\nActually:%s\n' % (
+        [GLOBAL[TAG_TYPE]['keywordId']], id_set)
 
 
 @formatter
@@ -206,10 +206,10 @@ def test_getKeywordByAdgroupId(server, user):
     _compare_dict(GLOBAL[TAG_TYPE]['input'], keyword)
 
 
-#@formatter
+@formatter
 def test_getKeywordByKeywordId(server, user):
     '''
-    关键词：获取单元ID下的所有关键词对象 getKeywordByKeywordId
+    关键词：通过关键词ID获取关键词对象 getKeywordByKeywordId
     '''
     res = getKeywordByKeywordId(
         header=user, server=server, body={'keywordIds': [GLOBAL[TAG_TYPE]['keywordId']]})
@@ -382,9 +382,22 @@ def test_updateKeyword_unchange(server, user):
 
 
 @formatter
+def test_updateKeyword_price_2place(server, user):
+    '''
+    关键词：更新关键词出价修改为2位小数999.59，测试精度
+    '''
+    keyword = GLOBAL[TAG_TYPE]['output']
+    change = dict(price=999.59)
+    _updateKeyword_by_dict(
+        server, user, keyword.keywordId, change, change)
+    # recovery
+    updateKeyword(server=server, header=user, body=keyword)
+
+
+@formatter
 def test_updateKeyword_clear_price(server, user):
     '''
-    关键词：更新操作，取消关键词出价
+    关键词：更新操作，取消关键词出价，自动更新为单元出价
     '''
     keyword = GLOBAL[TAG_TYPE]['output']
     change = dict(price=0)
@@ -436,6 +449,7 @@ def test_updateKeyword(server, user):
         header=user, server=server, body={'keywordIds': [GLOBAL[TAG_TYPE]['keywordId']]}).body.keywordTypes[0]
 
     test_updateKeyword_unchange(server, user)
+    test_updateKeyword_price_2place(server, user)
     test_updateKeyword_clear_price(server, user)
     test_updateKeyword_clear_destinationUrl(server, user)
     test_activeKeyword(server, user)

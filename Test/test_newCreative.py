@@ -5,17 +5,17 @@
 __version__ = 1.0
 __author__ = 'Qing Zhang'
 
-from APITest.model.models import (APIData, AttributeDict)
+from APITest.models.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
-from APITest.model.newCreative import *
+from APITest.models.newCreative import *
 from APITest.settings import USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
 import collections
-from TestCommon.utils import formatter
-from APITest.model import image
-from APITest.model.user import UserObject
-from APITest.model.const import STATUS
+from TestCommon.utils import formatter, mount, suite
+from APITest.models import image
+from APITest.models.user import UserObject
+from APITest.models.const import STATUS
 from TestCommon import ThreadLocal
 from TestCommon.exceptions import UndefinedException
 import threading
@@ -441,16 +441,6 @@ def test_deletePhone(server, user):
     assert [] == ids, 'Delete phoneId failed!\n%s remain existing.\n' % (ids)
 
 
-def mount(obj):
-    def decorator(func):
-        obj.__dict__[func.__name__] = func
-
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        return wrapper
-    return decorator
-
 #-------------------------------------------------------------------------
 #  测试入口
 #-------------------------------------------------------------------------
@@ -481,6 +471,7 @@ def test_sublink(server, user):
     test_deleteSublink(server, user)
 
 
+@suite('api')
 @mount(api.newCreative)
 def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
     user.get_tag(TAG_TYPE, refresh=True)

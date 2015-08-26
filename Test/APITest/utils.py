@@ -12,7 +12,7 @@ import logging
 from requests.exceptions import InvalidURL
 import requests
 from lxml import etree
-from .model.const import STATUS
+from .models.const import STATUS
 
 log = logging.getLogger(__name__)
 

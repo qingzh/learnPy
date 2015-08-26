@@ -27,8 +27,7 @@ from time import clock
 from . import ThreadLocal
 import random
 import string
-
-results = ThreadLocal.get_results()
+import collections
 
 
 def secondsToStr(t):
@@ -59,9 +58,35 @@ def formatter(func):
                 tr.message = '[%s] %s' % (type(e).__name__,  ','.join(e.args))
         tr.function = '%s.%s' % (func.__module__, func.__name__)
         tr.runtime = clock() - begin
-        results.append(tr)
+        ThreadLocal.get_results().append(tr)
         return tr
     return wrapper
+
+
+def mount(obj):
+    def decorator(func):
+        obj.__dict__[func.__name__] = func
+
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+    return decorator
+
+results = ThreadLocal.get_results()
+
+
+def suite(labels):
+    if not isinstance(labels, collections.MutableSequence):
+        labels = [labels]
+
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        for label in labels:
+            ThreadLocal.get_suites()[label].add(wrapper)
+        return wrapper
+    return decorator
 
 
 def _gen_random_chinese():

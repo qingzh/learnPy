@@ -1,6 +1,7 @@
 #! -*- coding:utf8 -*-
 
 from threading import local
+from collections import defaultdict
 
 _thread_locals = local()
 _thread_locals.entries = {}
@@ -25,6 +26,19 @@ def print_results():
         print i.pretty()
     else:
         print '-' * 100
+
+#---------------------------------------------------------------------------
+#  Store test suites
+
+
+def get_suites():
+    if not hasattr(_thread_locals, 'suites'):
+        _thread_locals.suites = defaultdict(set)
+    return getattr(_thread_locals, 'suites')
+
+
+def clear_suites():
+    get_suites().clear()
 
 #---------------------------------------------------------------------------
 
