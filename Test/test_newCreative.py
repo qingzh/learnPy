@@ -5,21 +5,21 @@
 __version__ = 1.0
 __author__ = 'Qing Zhang'
 
-from APITest.models.models import (APIData, AttributeDict)
-from TestCommon.models.const import STDOUT, BLANK
-from APITest.models.newCreative import *
-from APITest.settings import USERS, api, LOG_DIR
-from APITest import settings
-from APITest.utils import assert_header
-import collections
-from TestCommon.utils import formatter, mount, suite
 from APITest.models import image
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
+from APITest.models.models import APIData, AttributeDict
+from APITest.models.newCreative import *
+from APITest import settings
+from APITest.settings import USERS, api, LOG_DIR
+from APITest.utils import assert_header
 from TestCommon import ThreadLocal
+from TestCommon.utils import formatter, mount, suite
+from TestCommon.models.const import STDOUT, BLANK
 from TestCommon.exceptions import UndefinedException
-import threading
 from datetime import datetime
+import collections
+import threading
 import logging
 ##########################################################################
 #    log settings
@@ -42,7 +42,7 @@ log.addHandler(output_file)
 ##########################################################################
 
 SERVER = settings.SERVER.BETA
-DEFAULT_USER = UserObject(**USERS.get('ShenmaPM2.5'))
+DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 
 '''

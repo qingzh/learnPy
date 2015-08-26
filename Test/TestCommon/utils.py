@@ -83,8 +83,10 @@ def suite(labels):
     def decorator(func):
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
+        suites = ThreadLocal.get_suites()
+        suites['ALL'].add(wrapper)
         for label in labels:
-            ThreadLocal.get_suites()[label].add(wrapper)
+            suites[label].add(wrapper)
         return wrapper
     return decorator
 
