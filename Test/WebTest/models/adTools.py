@@ -53,18 +53,6 @@ class TRContainer(BaseContainer):
     tr = ListElement(By.XPATH, './td', BaseElement)
 
 
-class THContainer(BaseContainer):
-
-    '''
-    怎么将checkbox这个属性变成TRContainer的属性
-    __set__ ?
-    '''
-    # TODO
-    # 存储所有的单元格
-
-    pass
-
-
 class TableContainer(BaseContainer):
     title = ContainerElement(
         By.CSS_SELECTOR, 'div.table_head', BaseContainer)
@@ -81,7 +69,7 @@ class TableContainer(BaseContainer):
                       key=lambda x: x.find_element(By.XPATH, '..').text.strip()))
 
     thead = ContainerElement(
-        By.XPATH, './/table/thead/', THContainer)
+        By.XPATH, './/table/thead/tr', ListContainer, subxpath='./td', subobj=BaseElement)
     tbody = ContainerElement(
         By.CSS_SELECTOR, 'table.table > tbody', ListContainer, subxpath='./tr', subobj=TRContainer)
 
@@ -91,7 +79,7 @@ class TableContainer(BaseContainer):
         By.XPATH, '//div[@class="ad_page"]//li[@class="page-turn"]/a')
 
     def set_number(self, value):
-        if value is NOne:
+        if value is None:
             return
         self.page_index = value
         self.page_confirm = True

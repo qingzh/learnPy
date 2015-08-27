@@ -7,7 +7,7 @@ import time
 from selenium.common.exceptions import (
     NoSuchElementException, ElementNotVisibleException)
 from selenium.webdriver.common.action_chains import ActionChains
-from APITest.model.models import _slots_class, AttributeDict, SlotsDict
+from APITest.models.models import _slots_class, AttributeDict, SlotsDict
 from WebTest.models.adTools import LoginPage, AdTools
 from WebTest.utils import *
 from WebTest.exceptions import *
@@ -119,36 +119,7 @@ def batch_resume(driver):
 
 
 def add_cookie(driver):
-    cookies = [{u'domain': u'e.sm.cn',
-                u'name': u'JSESSIONID',
-                u'path': u'/cpc/',
-                u'secure': False,
-                u'value': u'5632AE823F921DF652E51169AFBE4630-n1'},
-               {u'domain': u'e.sm.cn',
-                u'name': u'JSESSIONID',
-                u'path': u'/fs/',
-                u'secure': False,
-                u'value': u'D8D0C042D91A905E05FC5D8F98A3BBB2'},
-               {u'domain': u'e.sm.cn',
-                u'name': u'JSESSIONID',
-                u'path': u'/message/',
-                u'secure': False,
-                u'value': u'F96E462644C5E8CEE38AE223402A1339'},
-               {u'domain': u'e.sm.cn',
-                u'name': u'JSESSIONID',
-                u'path': u'/kr/',
-                u'secure': False,
-                u'value': u'81A103B140D39FA92A89790CD33AA886'},
-               {u'domain': u'e.sm.cn',
-                u'name': u'JSESSIONID',
-                u'path': u'/report/',
-                u'secure': False,
-                u'value': u'77684926972F460CD239EC616879154F'},
-               {u'domain': u'e.sm.cn',
-                u'name': u'JSESSIONID',
-                u'path': u'/oplog/',
-                u'secure': False,
-                u'value': u'8502C6403AB09647F98356C80918CFA0'}]
+    cookies = []
     driver.get('https://e.sm.cn/cpc')
     map(lambda x: driver.add_cookie(x), cookies)
     driver.get('https://e.sm.cn/cpc')
@@ -169,7 +140,7 @@ caps['loggingPrefs'] = {'performance': 'ALL'}
 ######################################################################
 
 
-def test_main(driver, **kwargs):
+def test_cpc_main(driver, **kwargs):
     login(driver, **kwargs)
     cpc = CPCPage(driver)
     # 进入推广管理
@@ -366,7 +337,21 @@ def set_session_cookies_from_driver(session, driver):
 但是requests.get('http://e.sm.cn/cpc/adManagement?uid=1061', cookies = session.cookies) 成功
 '''
 
-entries = []
+entries = {}
+REPORT_LEVEL = (
+    # u"账户报告",
+    # u"计划报告",
+    # u"单元报告",
+    u"关键词报告",
+    u"创意报告",
+    u"蹊径报告",
+    u"电话报告",
+    u"APP报告",
+    u"无效点击报告",
+    u"分地域报告",
+)
+
+DATE_TYPE = (u'分日', u'分月', u'汇总')
 
 
 def test_adTools(driver):
@@ -375,53 +360,86 @@ def test_adTools(driver):
     def do_record(o):
         pa = PageArea(
             **driver.execute_script('return pageArea.getData()'))
-        print pa
-        entries.append(
-            (level, dateType, order, o, pa.currentPage, pa.totalRecord, time_delta(driver, 'report')))
-        for i in entries[-1][:-1]:
-            print i,
-        print entries[-1][-1].processingTime
-        return pa.random_turn()
+        record = entries.setdefault(level, {}).setdefault(
+            dateType, {})
+        record['total'] = pa.totalRecord
+        record.setdefault(order, {}).setdefault(
+            o, []).append((pa.currentPage, time_delta(driver, 'report')))
+
+        print level, dateType, order, record[order][o][-1][-1].processingTime
+
+        index = pa.random_turn()
+        if index is None:
+            record[order][o].append(
+                (0, PerformanceEntry(responseStart=0, requestStart=0)))
+            return
+
+        table.set_number(index)
+        record[order][o].append((0, time_delta(driver, 'report')))
+
+        pa_after = PageArea(
+            **driver.execute_script('return pageArea.getData()'))
+        assert pa_after.totalRecord == pa.totalRecord
+        assert pa_after.totalPage == pa.totalPage
 
     form = page.body.form
-
     form.set_date('2015-06-25', '2015-08-05')
-    for level in form.level.keys():
-        if level == u'搜索词报告':
-            continue
+    for level in REPORT_LEVEL:
         clear_performance_timing(driver)
-        for dateType in form.dateType.keys():
+        date_list = form.dateType.keys()
+        for dateType in (x for x in DATE_TYPE if x in date_list):
             form.set_data(level, dateType)
             form.submit()
             table = page.body.table
             for order in table.order.keys():
                 table.order[order] = u'降序'
-                n = do_record(u'降序')
-                if n:
-                    table.set_number(n)
-                    do_record(u'降序')
+                do_record(u'降序')
 
                 table.order[order] = u'升序'
-                n = do_record(u'升序')
-                if n:
-                    table.set_number(n)
-                    do_record(u'升序')
+                do_record(u'升序')
 
 
-def format(entries):
-    d = {}
-    for (level, dateType, order, index, total, delta) in entries:
-        record = d.setdefault(level, {}).setdefault(dateType, {})
-        record['total'] = total
-        record.setdefault(order, []).append((index, delta.processingTime))
-    return d
+def format(d):
+    for i in REPORT_LEVEL:
+        if i == u'无效点击报告':
+            continue
+        d0 = d[i]
+        for j in [u'分日', u'分月', u'汇总']:
+            if j not in d0:
+                continue
+            d1 = d0[j]
+            print '%s,%s,%s,' % (i, j, d1['total']),
+            for k in [u'展现量', u'点击量', u'消费', u'点击率',  u'平均点击价格']:
+                if k not in d1:
+                    continue
+                d2 = d1[k]
+                sx = d2[u'升序']
+                jx = d2[u'降序']
+                print '%.2f,%.2f,%.2f,%.2f,' % (sx[0][-1].processingTime, sx[1][-1].processingTime, jx[0][-1].processingTime, jx[1][-1].processingTime),
+            print
+    i = u'无效点击报告'
+    d0 = d[i]
+    for j in [u'分日', u'分月', u'汇总']:
+        d1 = d0[j]
+        print '%s,%s,%s,' % (i, j, d1['total']),
+        for k in [u'过滤金额', u'过滤前点击量', u'过滤点击量']:
+            d2 = d1[k]
+            sx = d2[u'升序']
+            jx = d2[u'降序']
+            print '%.2f,%.2f,%.2f,%.2f,' % (sx[0][-1].processingTime, sx[1][-1].processingTime, jx[0][-1].processingTime, jx[1][-1].processingTime),
+        print
 
 
 def test_main(uid=1061):
-    cr = Chrome(desired_capabilities=caps)
+    cr = Chrome('./chromedriver', desired_capabilities=caps)
     try:
         login(cr, 'smdev', 'smdevsmdev')
     except Exception:
         pass
     cr.get(url + '/cpc/adTools?uid=%s' % uid)
+    cr.maximize_window()
     test_adTools(cr)
+
+if __name__ == '__main__':
+    # test_main(1061)
+    pass

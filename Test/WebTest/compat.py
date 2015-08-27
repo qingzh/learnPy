@@ -1,10 +1,11 @@
 #! -*- coding:utf8 -*-
 
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import (
     NoSuchElementException, ElementNotVisibleException, WebDriverException)
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+
 ######################################################################
 #  不要交叉 import
 #  decorate `WebElement.find_elements`
@@ -13,7 +14,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 # driver.find_element 也要检查是否加载完成
 # 但是 WebElement.find_element 则不需要
 
-MAX_WAIT_TIME = 60
+# 最长等待时间：120s 和线上环境一致
+MAX_WAIT_TIME = 120
 
 
 def load_complete_dec(func):
@@ -22,12 +24,10 @@ def load_complete_dec(func):
         try:
             el = self.parent.find_element_by_xpath(
                 '//body/div[@id="windownbg"]')
-            if 'block' in el.get_attribute('style'):
-                WebDriverWait(el, MAX_WAIT_TIME).until_not(
-                    lambda x: 'block' in x.get_attribute('style'))
+            WebDriverWait(el, MAX_WAIT_TIME).until_not(
+                lambda x: 'block' in x.get_attribute('style'))
         except Exception as e:
-            print 'Exception: ', e
-            raise
+            raise e
         return ret
     return wrapper
 

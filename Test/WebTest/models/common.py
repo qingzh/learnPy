@@ -19,14 +19,14 @@ TODO:
 from ..utils import *
 from ..compat import (
     By, WebElement, NoSuchElementException, ElementNotVisibleException)
-from APITest.model.models import _slots_class
+from APITest.models.models import _slots_class
 import logging
 
 log = logging.getLogger(__name__)
 
 __all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
            'DictElement', 'BasePage', 'ContainerElement', 'BaseContainer',
-           'ListContainer', 'DictContainer', 'PageInfo', 'StatusElement', 
+           'ListContainer', 'DictContainer', 'PageInfo', 'StatusElement',
            'LoginPage']
 
 
