@@ -392,7 +392,7 @@ class TabHeaderContainer(BaseContainer):
     # 自定义列
     row_title = ContainerElement(By.ID, 'definRow', custom_row_container)
     # 选择日期
-    date_picker = ContainerElement(
+    date = ContainerElement(
         By.XPATH, './/div[@class="input-append"]', date_container)
     # 过滤状态
     status = ContainerElement(
@@ -562,7 +562,7 @@ class CPCPage(BasePage):
 
     # 页头
     banner = ContainerElement(
-        By.XPATH, '//body//div[@class="head"]', HeaderContainer)
+        By.CSS_SELECTOR, 'body div.head', HeaderContainer)
     # 左侧树形图
     tree = ContainerElement(
         By.XPATH, './/body//div[@class="body-tree"]', TreeContainer)

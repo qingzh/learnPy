@@ -4,6 +4,7 @@
 from .compat import By, WebElement
 import random
 import string
+from TestCommon.utils import gen_chinese_unicode, gen_random_ascii
 
 __all__ = ['_find_input', '_set_input', 'len_unicode', 'kwargs_dec',
            '_find_and_set_input', 'gen_random_ascii', 'gen_chinese_unicode']
@@ -77,8 +78,6 @@ def _find_and_set_input(element, value):
         raise TypeError('Expected WebElement!')
     _input = _find_input(element) or element
     _set_input(_input, value)
-
-
 
 
 def get_random_unicode(length, unicode=False):

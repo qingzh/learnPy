@@ -5,8 +5,9 @@ import logging
 import sys
 
 STDOUT = logging.StreamHandler(sys.stdout)
-BLANK = object()
+STDOUT.setLevel(logging.DEBUG)
 
+BLANK = object()
 
 
 class STATUS(object):

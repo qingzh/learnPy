@@ -20,10 +20,14 @@ from ..utils import *
 from ..compat import (
     By, WebElement, NoSuchElementException, ElementNotVisibleException)
 from APITest.model.models import _slots_class
+import logging
+
+log = logging.getLogger(__name__)
 
 __all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
            'DictElement', 'BasePage', 'ContainerElement', 'BaseContainer',
-           'ListContainer', 'DictContainer', 'PageInfo', 'StatusElement']
+           'ListContainer', 'DictContainer', 'PageInfo', 'StatusElement', 
+           'LoginPage']
 
 
 PageInfo = _slots_class(
@@ -72,7 +76,8 @@ class BaseElement(object):
         try:
             return obj.root.find_element(self.by, self.locator)
         except Exception as e:
-            # print obj.root, self.by, self.locator
+            log.debug(
+                'Obj:%s\nSelf:%s\nParent:%s, By:%s, Locator:%s', type(obj), type(self), obj.parent, self.by, self.locator)
             raise e
 
 
@@ -115,17 +120,16 @@ class StatusElement(BaseElement):
         self._key = key
         self._map = key_map
 
-    def __get__(self, obj, objtype):
+    def __get__(self, obj, objtype=None):
         item = super(StatusElement, self).__get__(obj)
         return self._key(item)
 
     def __set__(self, obj, value):
         if value not in self._map:
             raise Exception('Status is not supported!')
-        item = super(StatusElement, self).__get__(obj)
-        # print type(obj), self.by, self.locator
-        # print item, self._key(item)
+        log.debug('StatusElement: %s\n', self.__dict__)
         status = self._map[value]
+        item = super(StatusElement, self).__get__(obj)
         origin = current = self._key(item)
         if status == current:
             return
@@ -135,8 +139,8 @@ class StatusElement(BaseElement):
             '''
             item.click()
             item = super(StatusElement, self).__get__(obj)
-            # print item, self._key(item)
             current = self._key(item)
+            log.debug('StatusElement current status: %s', current)
             if status == current or origin == current:
                 return
     """
@@ -441,10 +445,15 @@ class BaseContainer(BasePage):
         try:
             self._root = super(BaseContainer, self).root
         except NoSuchElementException:
+            log.debug('Type:%s, dict:\n%s\n', type(self), self.__dict__)
             self._click_parent()
             self._root = super(BaseContainer, self).root
-        if not self._root.is_displayed():
-            self._click_parent()
+        try:
+            self._root.is_displayed() or self._click_parent()
+        except Exception as e:
+            log.debug('Type: %s, root:%s\n%s\n', type(
+                self), self._root, self.__dict__)
+            log.debug(e)
         return self._root
 
 
@@ -605,3 +614,15 @@ class MouseOverMixin(BasePage):
                 self.parent.find_element(By.XPATH, '..').click()
                 self.parent.click()
         return self._root
+
+
+##########################################################################
+#   其他
+
+
+class LoginPage(BasePage):
+
+    username = InputElement(By.XPATH, '//input[@id="username"]')
+    password = InputElement(By.XPATH, '//input[@id="password"]')
+    captcha = InputElement(By.XPATH, '//input[@name="captchaResponse"]')
+    submit = InputElement(By.XPATH, '//input[@name="submit"]')
