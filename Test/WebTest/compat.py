@@ -1,6 +1,7 @@
 #! -*- coding:utf8 -*-
 
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import (
     NoSuchElementException, ElementNotVisibleException, WebDriverException)
@@ -33,6 +34,23 @@ def load_complete_dec(func):
 
 _click = WebElement.click
 WebElement.click = load_complete_dec(_click)
+
+
+def driver_load_complete_dec(func):
+    def wrapper(self, *args, **kwargs):
+        ret = func(self, *args, **kwargs)
+        try:
+            el = self.find_element_by_xpath(
+                '//body/div[@id="windownbg"]')
+            WebDriverWait(el, MAX_WAIT_TIME).until_not(
+                lambda x: 'block' in x.get_attribute('style'))
+        except Exception as e:
+            raise e
+        return ret
+    return wrapper
+
+_refresh = WebDriver.refresh
+WebDriver.refresh = driver_load_complete_dec(_refresh)
 
 
 def displayed_dec(func):

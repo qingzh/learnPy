@@ -84,6 +84,7 @@ class BaseElement(object):
 class InputElement(BaseElement):
 
     def __set__(self, obj, value):
+        # __get__ 的时候碰到异常
         item = super(InputElement, self).__get__(obj)
         element = _find_input(item) or item
         if element is None:
@@ -445,15 +446,18 @@ class BaseContainer(BasePage):
         try:
             self._root = super(BaseContainer, self).root
         except NoSuchElementException:
-            log.debug('Type:%s, dict:\n%s\n', type(self), self.__dict__)
+            log.debug(
+                'Root is not found. Type: %s\ndict: %s\n', type(self), self.__dict__)
             self._click_parent()
             self._root = super(BaseContainer, self).root
         try:
-            self._root.is_displayed() or self._click_parent()
+            if not self._root.is_displayed():
+                self._click_parent()
         except Exception as e:
-            log.debug('Type: %s, root:%s\n%s\n', type(
-                self), self._root, self.__dict__)
-            log.debug(e)
+            log.debug(
+                'Type: %s, root:%s\n%s\n', type(self), self._root, self.__dict__)
+            # log.debug(e)
+            raise e
         return self._root
 
 

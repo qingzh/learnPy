@@ -339,10 +339,10 @@ def set_session_cookies_from_driver(session, driver):
 
 entries = {}
 REPORT_LEVEL = (
-    # u"账户报告",
-    # u"计划报告",
-    # u"单元报告",
-    # u"关键词报告",
+    u"账户报告",
+    u"计划报告",
+    u"单元报告",
+    u"关键词报告",
     u"创意报告",
     u"蹊径报告",
     u"电话报告",
@@ -367,7 +367,7 @@ def test_adTools(driver):
         record.setdefault(order, {}).setdefault(
             o, []).append((pa.currentPage, time_delta(driver, 'report')))
 
-        print level, dateType, order, record[order][o][-1][-1].processingTime
+        print level, dateType, order, pa.totalRecord, record[order][o][-1][-1].processingTime
 
         index = pa.random_turn()
         if index is None:
@@ -444,3 +444,10 @@ def test_main(uid=1061):
 if __name__ == '__main__':
     # test_main(1061)
     pass
+
+
+# ---------------------------------------------------
+from WebTest.models.common import log as web_log
+from TestCommon.models.const import STDOUT
+web_log.setLevel(logging.DEBUG)
+# web_log.addHandler(STDOUT)
