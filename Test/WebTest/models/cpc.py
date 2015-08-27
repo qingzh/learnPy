@@ -569,11 +569,3 @@ class CPCPage(BasePage):
     # 中间主页面
     body = ContainerElement(
         By.CSS_SELECTOR, 'div.body-main-area', CPCMainContainer)
-
-
-class LoginPage(BasePage):
-
-    username = InputElement(By.XPATH, '//input[@id="username"]')
-    password = InputElement(By.XPATH, '//input[@id="password"]')
-    captcha = InputElement(By.XPATH, '//input[@name="captchaResponse"]')
-    submit = InputElement(By.XPATH, '//input[@name="submit"]')

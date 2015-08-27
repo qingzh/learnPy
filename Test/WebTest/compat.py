@@ -14,8 +14,8 @@ from selenium.webdriver.common.by import By
 # driver.find_element 也要检查是否加载完成
 # 但是 WebElement.find_element 则不需要
 
-# 最长等待时间：120s 和线上环境一致
-MAX_WAIT_TIME = 120
+# 线上环境最长等待时间：120 seconds
+MAX_WAIT_TIME = 180
 
 
 def load_complete_dec(func):

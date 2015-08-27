@@ -342,7 +342,7 @@ REPORT_LEVEL = (
     # u"账户报告",
     # u"计划报告",
     # u"单元报告",
-    u"关键词报告",
+    # u"关键词报告",
     u"创意报告",
     u"蹊径报告",
     u"电话报告",
@@ -355,6 +355,7 @@ DATE_TYPE = (u'分日', u'分月', u'汇总')
 
 
 def test_adTools(driver):
+    driver.refresh()
     page = AdTools(driver)
 
     def do_record(o):
@@ -385,9 +386,9 @@ def test_adTools(driver):
     form = page.body.form
     form.set_date('2015-06-25', '2015-08-05')
     for level in REPORT_LEVEL:
-        clear_performance_timing(driver)
         date_list = form.dateType.keys()
         for dateType in (x for x in DATE_TYPE if x in date_list):
+            clear_performance_timing(driver)
             form.set_data(level, dateType)
             form.submit()
             table = page.body.table
