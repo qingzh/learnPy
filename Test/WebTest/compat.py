@@ -51,6 +51,8 @@ def driver_load_complete_dec(func):
 
 _refresh = WebDriver.refresh
 WebDriver.refresh = driver_load_complete_dec(_refresh)
+_get = WebDriver.get
+WebDriver.get = driver_load_complete_dec(_get)
 
 
 def displayed_dec(func):
