@@ -243,7 +243,12 @@ def time_delta(driver, pattern=r'.json'):
             return x.name.match(/%s/);
         }).pop()''' % pattern)
     if item:
+        log.debug(
+            '%15.5f | %15.5f', item['requestStart'], item['responseStart'])
+        log.debug('Performance Length: %s', driver.execute_script(
+            'return window.performance.getEntries().length'))
         return PerformanceEntry(item)
+    print 'Performance getEntries:', item
     return None  # or raise Exception
 
 
@@ -255,14 +260,14 @@ def get_page_info(driver, attr=None):
 
 
 def clear_performance_timing(driver):
+    performance.extend(driver.execute_script(
+        'return window.performance.getEntriesByType("resource")'))
     driver.execute_script('window.performance.webkitClearResourceTimings()')
     driver.execute_script(
         'window.performance.webkitSetResourceTimingBufferSize(300)')
 
 
 record_dict = {}
-
-import random
 
 
 class TimeRecord(object):
@@ -350,8 +355,14 @@ REPORT_LEVEL = (
     u"无效点击报告",
     u"分地域报告",
 )
+REPORT_LEVEL = (
+    u"关键词报告",
+    u"创意报告",
+)
 
 DATE_TYPE = (u'分日', u'分月', u'汇总')
+
+performance = []
 
 
 def test_adTools(driver):
@@ -367,16 +378,17 @@ def test_adTools(driver):
         record.setdefault(order, {}).setdefault(
             o, []).append((pa.currentPage, time_delta(driver, 'report')))
 
-        print level, dateType, order, pa.totalRecord, record[order][o][-1][-1].processingTime
+        print level, dateType, order, o, pa.totalRecord, record[order][o][-1][-1].processingTime
 
         index = pa.random_turn()
+        print level, dateType, order, o, index
         if index is None:
             record[order][o].append(
                 (0, PerformanceEntry(responseStart=0, requestStart=0)))
             return
 
         table.set_number(index)
-        record[order][o].append((0, time_delta(driver, 'report')))
+        record[order][o].append((index, time_delta(driver, 'report')))
 
         pa_after = PageArea(
             **driver.execute_script('return pageArea.getData()'))
@@ -385,6 +397,20 @@ def test_adTools(driver):
 
     form = page.body.form
     form.set_date('2015-06-25', '2015-08-05')
+
+    for level, dateType in ((u'关键词报告', u'汇总'), (u'创意报告', u'分日')):
+        clear_performance_timing(driver)
+        form.set_data(level, dateType)
+        form.submit()
+        table = page.body.table
+        for order in table.order.keys():
+            table.order[order] = u'降序'
+            do_record(u'降序')
+
+            table.order[order] = u'升序'
+            do_record(u'升序')
+
+    return
     for level in REPORT_LEVEL:
         date_list = form.dateType.keys()
         for dateType in (x for x in DATE_TYPE if x in date_list):
@@ -416,7 +442,9 @@ def format(d):
                 d2 = d1[k]
                 sx = d2[u'升序']
                 jx = d2[u'降序']
-                print '%.2f,%.2f,%.2f,%.2f,' % (sx[0][-1].processingTime, sx[1][-1].processingTime, jx[0][-1].processingTime, jx[1][-1].processingTime),
+                print '%.5f,%.5f,%.5f,%.5f,' % (
+                    sx[0][-1].processingTime, sx[1][-1].processingTime,
+                    jx[0][-1].processingTime, jx[1][-1].processingTime),
             print
     i = u'无效点击报告'
     d0 = d[i]

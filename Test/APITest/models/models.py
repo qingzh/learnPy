@@ -115,6 +115,7 @@ class AttributeDict(dict):
 
     def __setitem__(self, key, value):
         # Nested AttributeDict object
+        log.debug('Obj: %s\nkey: %s, value: %s\n', type(self), key, value)
         if isinstance(value, dict) and not isinstance(value, self.__classhook__) and issubclass(self.__classhook__, type(value)):
             value = self.__classhook__(value)
         # sequence

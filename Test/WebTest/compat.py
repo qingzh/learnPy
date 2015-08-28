@@ -6,6 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import (
     NoSuchElementException, ElementNotVisibleException, WebDriverException)
 from selenium.webdriver.common.by import By
+import logging
 
 ######################################################################
 #  不要交叉 import
@@ -16,6 +17,7 @@ from selenium.webdriver.common.by import By
 # 但是 WebElement.find_element 则不需要
 
 # 线上环境最长等待时间：120 seconds
+log = logging.getLogger(__name__)
 MAX_WAIT_TIME = 180
 
 
@@ -28,7 +30,7 @@ def load_complete_dec(func):
             WebDriverWait(el, MAX_WAIT_TIME).until_not(
                 lambda x: 'block' in x.get_attribute('style'))
         except Exception as e:
-            raise e
+            log.info('load_complete_dec:', e)
         return ret
     return wrapper
 
@@ -45,7 +47,7 @@ def driver_load_complete_dec(func):
             WebDriverWait(el, MAX_WAIT_TIME).until_not(
                 lambda x: 'block' in x.get_attribute('style'))
         except Exception as e:
-            raise e
+            log.info('driver_load_complete_dec:', e)
         return ret
     return wrapper
 
