@@ -7,12 +7,12 @@ __author__ = 'Qing Zhang'
 
 from APITest.models.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
+from TestCommon.utils import formatter
 from APITest.models.keyword import *
 from APITest.settings import USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
 import collections
-from TestCommon.utils import formatter
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from TestCommon import ThreadLocal

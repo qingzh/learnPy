@@ -28,6 +28,7 @@ from . import ThreadLocal
 import random
 import string
 import collections
+from functools import wraps
 
 
 def secondsToStr(t):
@@ -37,6 +38,7 @@ def secondsToStr(t):
 
 
 def formatter(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
         tr = TestResult(description=func.func_doc)
         begin = clock()
@@ -64,6 +66,7 @@ def formatter(func):
 
 
 def mount(obj):
+    @wraps(obj)
     def decorator(func):
         obj.__dict__[func.__name__] = func
 
@@ -81,6 +84,7 @@ def suite(labels):
         labels = [labels]
 
     def decorator(func):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
         suites = ThreadLocal.get_suites()

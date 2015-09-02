@@ -76,7 +76,7 @@ def _pretty_runtime(f, width=WIDTH.RUNTIME):
     if f is None:
         return '-'.rjust(width)
     f = float(f)
-    return ('{:%d.2f}' % width).format(f)
+    return ('{:>%d.2f}' % width).format(f)
 
 
 class TestResult(AttributeDict):

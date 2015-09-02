@@ -46,10 +46,10 @@ class UserObject(AttributeDict):
             assert_header(res.header, STATUS.SUCCESS)
             return res.body.campaignTypes[0]
         except AssertionError as e:
-            if res.header.get('failure', [{}])[0].get('code', 0) != 901203:
+            if res.header.get('failures', [{}])[0].get('code', 0) != 901203:
                 raise e
             self.get_tag(prefix, refresh=True)
-            return self.add_campaign(self, server, prefix)
+            return self.add_campaign(server, prefix)
         except KeyError:
             return res
 

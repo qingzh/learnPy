@@ -10,76 +10,53 @@ Type:
 
 '''
 import json
-import regex
 import logging
-import os
-import sys
-from datetime import datetime, date
 import time
-from APITest.model.models import (
-    RequestHeader, ResponseData, BaseData, APIRequest, APIData)
+from APITest.models.models import AttributeDict, APIData
 from APITest.utils import (
     SafeConfigParser, sub_commas, md5_of_file, assert_object)
-from APITest.model.models import log_stdout
-from APITest.model.campaign import yield_campaignType
+from TestCommon.models.const import STDOUT, BLANK
+from APITest.models.campaign import yield_campaignType
 import random
 from APITest.settings import SERVER, USERS, api
-from APITest.model.adgroup import CampaignAdgroupId
-from APITest.model.adgroup import yield_adgroupTypes
+from APITest.models.adgroup import *
 from APITest.utils import assert_header
-import itertools
+from APITest.models.user import UserObject
+from APITest.models.const import STATUS
+from TestCommon import ThreadLocal
+from APITest import settings
 
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
-log_stdout.setLevel(logging.INFO)
-log.addHandler(log_stdout)
-
+STDOUT.setLevel(logging.INFO)
+log.addHandler(STDOUT)
 
 MAX_CAMPIGN_AMOUNT = 500
 MAX_ADGROUP_PER_CAMPAIGN = 2000
-DEFAULT_USER = USERS.get('ShenmaPM2.5')
-
-default_data = APIData(header=DEFAULT_USER)
-getAllCampaignID = api.campaign.getAllCampaignID
-getAllCampaign = api.campaign.getAllCampaign
-addCampaign = api.campaign.addCampaign
-deleteCampaign = api.campaign.deleteCampaign
-getCampaignByCampaignId = api.campaign.getCampaignByCampaignId
-
-addAdgroup = api.adgroup.addAdgroup
-deleteAdgroup = api.adgroup.deleteAdgroup
-getAllAdgroupId = api.adgroup.getAllAdgroupId
-getAdgroupByCampaignId = api.adgroup.getAdgroupByCampaignId
-getAdgroupIdByCampaignId = api.adgroup.getAdgroupIdByCampaignId
-getAdgroupByAdgroupId = api.adgroup.getAdgroupByAdgroupId
-updateAdgroup = api.adgroup.updateAdgroup
 
 
-def doRequest(req, body={}, server=SERVER, user=DEFAULT_USER, recover=False):
-    '''
-    req.response(**kwargs)
-    @return requests.Response
-    '''
-    data = APIData(header=user)
-    data.body = body if isinstance(body, BaseData) else BaseData(**body)
-    res = req.response(server, json=data)
-    log.debug(res.request.url)
-    log.debug('[REQUEST ] %s' % res.request.body)
-    log.debug('[RESPONSE] %s' % res.content)
-    return res
+'''
+    "adgroup": {
+        "getAllAdgroupId": APIRequest(method=post, uri='/api/adgroup/getAllAdgroupId'),
+        "getAdgroupIdByCampaignId": APIRequest(method=post, uri='/api/adgroup/getAdgroupIdByCampaignId'),
+        "getAdgroupByCampaignId": APIRequest(method=post, uri='/api/adgroup/getAdgroupByCampaignId'),
+        "getAdgroupByAdgroupId": APIRequest(method=post, uri='/api/adgroup/getAdgroupByAdgroupId'),
+        "addAdgroup": APIRequest(method=post, uri='/api/adgroup/addAdgroup'),
+        "updateAdgroup": APIRequest(method=post, uri='/api/adgroup/updateAdgroup'),
+        "deleteAdgroup": APIRequest(method=delete, uri='/api/adgroup/deleteAdgroup'),
+    }
+'''
+locals().update(api.campaign)
+locals().update(api.adgroup)
 
+TAG_TYPE = u'单元'
+SERVER = settings.SERVER.PRODUCTION
+DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
-def assert_success(bd):
-    assert_header(bd.header, 0)
-
-
-def assert_partial(bd):
-    assert_header(bd.header, 1)
-
-
-def assert_failure(bd):
-    assert_header(bd.header, 2)
+#-------------------------------------------------------------------------
+#
+#-------------------------------------------------------------------------
 
 
 def parse_update_map(update_map):
@@ -105,15 +82,15 @@ def test_delete_all(params={}, server=SERVER, user=DEFAULT_USER, recover=False):
     '''
     删除所有计划
     '''
-    get_bd = doRequest(getAllCampaignID)
-    del_bd = doRequest(deleteCampaign, get_bd.body)
-    all_bd = doRequest(getAllCampaignID)
+    get_bd = getAllCampaignID(server=server, header=user)
+    del_bd = deleteCampaign(server=server, header=user, body=get_bd.body)
+    all_bd = getAllCampaignID(server=server, header=user)
     assert 0 == del_bd.body.result
     assert [] == all_bd.body.campaignIds
 
 
 def test_delete_subset(server=SERVER, user=DEFAULT_USER, recover=False):
-    get_bd = doRequest(getAllCampaignID)
+    get_bd = getAllCampaignID(server=server, header=user)
     n = len(get_bd.body.campaignIds)
     if n == 0:
         n = random.randint(1, MAX_CAMPIGN_AMOUNT)
@@ -125,12 +102,12 @@ def test_delete_subset(server=SERVER, user=DEFAULT_USER, recover=False):
     del_ids = random.sample(campaignIds, random.randint(1, n))
     del_bd = doRequest(deleteCampaign, body={'campaignIds': del_ids})
     assert_success(del_bd)
-    all_ids = doRequest(getAllCampaignID).body.campaignIds
+    all_ids = getAllCampaignID(server=server, header=user).body.campaignIds
     assert [] == filter(lambda x: x in all_ids, del_ids)
 
 
 def test_delete_mixed(server=SERVER, user=DEFAULT_USER, recover=False):
-    get_bd = doRequest(getAllCampaignID)
+    get_bd = getAllCampaignID(server=server, header=user)
     n = len(get_bd.body.campaignIds)
     if n == 0:
         n = random.randint(1, MAX_CAMPIGN_AMOUNT)
@@ -144,7 +121,7 @@ def test_delete_mixed(server=SERVER, user=DEFAULT_USER, recover=False):
     del_bd = doRequest(
         deleteCampaign, body={'campaignIds': del_ids + invalid_ids})
     assert_partial(del_bd)
-    all_ids = doRequest(getAllCampaignID).body.campaignIds
+    all_ids = getAllCampaignID(server=server, header=user).body.campaignIds
     print del_ids, all_ids
     assert [] == filter(lambda x: x in all_ids, del_ids)
     print del_bd.body.campaignIds, invalid_ids
@@ -167,18 +144,44 @@ def test_add_exceed(server=SERVER, user=DEFAULT_USER, recover=False):
     '''
     插入计划数超过500, status_code=404
     '''
-    all_before = doRequest(getAllCampaignID)
+    all_before = getAllCampaignID(server=server, header=user)
     n = random.randint(MAX_CAMPIGN_AMOUNT, MAX_CAMPIGN_AMOUNT << 1)
     add_bd = _add_ncampaign(n)
     assert_failure(add_bd)
-    all_after = doRequest(getAllCampaignID)
+    all_after = getAllCampaignID(server=server, header=user)
     assert all_before.body == all_after.body, '[BEFORE]: %s\n[AFTER]: %s\n' % (
         all_before.body.json(), all_after.body.json())
 
 
+def _get_campaignId(server, user, refresh=False):
+    tag = user.get_tag(TAG_TYPE, refresh)
+    tag_dict = ThreadLocal.get_tag_dict((server, user.username), tag)
+    if 'campaignId' not in tag_dict:
+        tag_dict.update(user.add_campaign(server, TAG_TYPE))
+    return tag_dict['campaignId']
+
+
+def test_getAllAdgroupId(server, user):
+    " 获取账户下所有单元ID "
+    # return campaignAdgroupIds:[]
+    res = getAllAdgroupId(server=server, header=user)
+    assert_header(res.header, STATUS.SUCCESS)
+
+
 def test_getAdgroupIdByCampaignId(server=SERVER, user=DEFAULT_USER, recover=False):
-    # TODO
-    pass
+    " 获取计划ID下所有单元ID "
+    # return campaignAdgroupIds:[int,]
+    res = getAdgroupIdByCampaignId(
+        server=server, header=user, body={'campaignIds': user.get_campaignIds(server)})
+    assert_header(res.header, STATUS.SUCCESS)
+
+
+def test_getAdgroupByCampaignId(server=SERVER, user=DEFAULT_USER, recover=False):
+    " 获取计划ID下所有单元ID "
+    # return campaignAdgroups:[dict,]
+    res = getAdgroupByCampaignId(
+        server=server, header=user, body={'campaignIds': user.get_campaignIds(server)})
+    assert_header(res.header, STATUS.SUCCESS)
 
 
 def _add_ncampaign(n, server=SERVER, user=DEFAULT_USER, recover=False):
@@ -199,7 +202,8 @@ def _add_ncampaign(n, server=SERVER, user=DEFAULT_USER, recover=False):
 
 
 def _get_campaign_ids(n, server=SERVER, user=DEFAULT_USER, recover=False):
-    campaign_ids = doRequest(getAllCampaignID).body.campaignIds
+    campaign_ids = getAllCampaignID(
+        server=server, header=user).body.campaignIds
     fixed = n - len(campaign_ids)
     if fixed > 0:
         campaign_ids.extend(_add_ncampaign(fixed).body.campaignIds)
