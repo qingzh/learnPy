@@ -201,7 +201,8 @@ def test_getSublink(server, user):
     sublink = res.body.sublinkTypes[0]
     # It's IMPORTANT to convert `sublink` to `SublinkType`
     GLOBAL['sublink']['output'] = sublink
-    assert GLOBAL['sublink']['input']['sublinkInfos'] == sublink.sublinkInfos, 'SublinkInfos Differ!\nExpected: %s\nActually: %s\n' % (GLOBAL['sublink']['input']['sublinkInfos'], sublink.sublinkInfos)
+    assert GLOBAL['sublink']['input']['sublinkInfos'] == sublink.sublinkInfos, 'SublinkInfos Differ!\nExpected: %s\nActually: %s\n' % (
+        GLOBAL['sublink']['input']['sublinkInfos'], sublink.sublinkInfos)
     _compare_dict(GLOBAL['sublink']['input'], sublink)
 
 

@@ -339,8 +339,9 @@ class APIRequest(Request):
         log.debug('[REQUEST ] %s' % res.request.body)
         log.debug('[RESPONSE] %s\n' % res.content)
         # For API, status code should be always `200`
-        assert res.status_code == 200, 'Expected status code is 200, but got %s.\nURL:%s\n' % (
-            res.status_code, res.request.url)
+        assert res.status_code == 200, \
+            'Expected status `200`, got `{}`.\nURL:{}\nBody:{}\n'.format(
+                res.status_code, res.request.url, res.request.body)
         return res
 
     def __call__(self, header=None, body=None, json=None, **kwargs):
