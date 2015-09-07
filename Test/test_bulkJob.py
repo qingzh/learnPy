@@ -29,20 +29,21 @@ import re
 import sys
 from datetime import datetime, date
 import time
-from APITest.model.models import (
+from APITest.models.models import (
     zipORtar, RequestHeader, BulkJobBody, APIRequest, APIData)
 from APITest.utils import (
     SafeConfigParser, sub_commas, md5_of_file, assert_object)
-from APITest.model.models import log_stdout, json_dump_decorator
+from APITest.models.models import json_dump_decorator
+from APITest.compat import STDOUT
 import threading
 from multiprocessing import Pool
 import xlrd
 import csv
-from APITest.model.models import sample, AttributeDict
+from APITest.models.models import sample, AttributeDict
 from APITest.utils import write_file
 from APITest.settings import BLOCK_SIZE, SERVER, USERS, api
 import itertools
-from APITest.model.bulkJob import bulkJobRequestType
+from APITest.models.bulkJob import bulkJobRequestType
 
 ####################################################
 #   set response.json to AttributeDict
@@ -76,8 +77,8 @@ APIRequest.prepare = prepare
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
-log_stdout.setLevel(logging.DEBUG)
-log.addHandler(log_stdout)
+STDOUT.setLevel(logging.DEBUG)
+log.addHandler(STDOUT)
 
 __variable__ = None
 
@@ -159,14 +160,13 @@ def get_fileid_by_taskid(taskid, server=SERVER, user=DEFAULT_USER):
     '''
     log.debug('[THREAD] [%s] is running...', threading.current_thread().name)
     data = APIData(header=user, body=dict(taskId=taskid))
-    req = api.task.getTaskState(json=data)
 
     while True:
-        res = req.response(server)
+        res = api.task.getTaskState(server=server, json=data)
         log.debug('[REQUEST ] %s' % res.request.body)
         log.debug('[RESPONSE] %s' % res.content)
         try:
-            body = res.json().body
+            body = res.body
             assert body.taskId == taskid, '%s != %s' % (body.taskId, taskid)
             if body.status != 'FINISHED':
                 time.sleep(3)
@@ -189,17 +189,17 @@ def get_file_by_fileid(fileid, filename, server=SERVER, user=DEFAULT_USER, check
     '''
     log.info('Download FileID [%s] to [%s]' % (fileid, filename))
     data = APIData(header=user, body=dict(fileId=fileid))
-    req = api.file.download(json=data)
-    res = req.response(server, stream=True)
+    res = api.file.download(server=server, json=data, stream=True)
     write_file(res.iter_content(BLOCK_SIZE), filename)
-    archive_check_md5(filename)
+    check and archive_check_md5(filename)
     return filename
 
 
-def _get_file_by_taskid(taskid, server=SERVER, user=DEFAULT_USER):
+def _get_file_by_taskid(taskid, server=SERVER, user=DEFAULT_USER, check=True):
     fileid = get_fileid_by_taskid(taskid, server, user)
     filename = ZIP_DIRECTORY + '/%s_%s_%s' % (user.username, taskid, fileid)
-    return get_file_by_fileid(fileid, filename, server, user)
+    print filename
+    return get_file_by_fileid(fileid, filename, server, user, check)
 
 
 def _get_file_by_json(params=None, server=SERVER, user=DEFAULT_USER):

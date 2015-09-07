@@ -38,7 +38,7 @@ import collections
 import uuid
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from TestCommon.utils import formatter
+from APITest.compat import formatter
 from TestCommon.exceptions import UndefinedException
 from TestCommon import ThreadLocal
 from datetime import datetime
@@ -63,7 +63,6 @@ log.addHandler(output_file)
 ##########################################################################
 
 MAX_CAMPIGN_AMOUNT = 500
-SERVER = settings.SERVER.PRODUCTION
 DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 '''
@@ -338,7 +337,8 @@ def test_delete_all(params={}, server=SERVER, user=DEFAULT_USER, recover=False):
     all_after = _get_all_ids()
     assert_header(del_bd.header, 0)
     assert del_bd.body <= dict(result=0, campaignIds=[])
-    assert all_after.body == dict(campaignIds=[]), 'Content Differ!\nExpected: EMPTY\nActually: %s\n' % (all_after.body)
+    assert all_after.body == dict(
+        campaignIds=[]), 'Content Differ!\nExpected: EMPTY\nActually: %s\n' % (all_after.body)
 
 
 def test_deleteCampaign():

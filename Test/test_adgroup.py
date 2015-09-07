@@ -23,7 +23,7 @@ from APITest.models.adgroup import *
 from APITest.utils import assert_header
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from TestCommon import ThreadLocal
+from APITest.compat import ThreadLocal, formatter
 from APITest import settings
 
 
@@ -51,7 +51,7 @@ locals().update(api.campaign)
 locals().update(api.adgroup)
 
 TAG_TYPE = u'单元'
-SERVER = settings.SERVER.PRODUCTION
+# SERVER defined in `settings.py`
 DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 #-------------------------------------------------------------------------
@@ -161,6 +161,7 @@ def _get_campaignId(server, user, refresh=False):
     return tag_dict['campaignId']
 
 
+@formatter
 def test_getAllAdgroupId(server, user):
     " 获取账户下所有单元ID "
     # return campaignAdgroupIds:[]
@@ -168,6 +169,7 @@ def test_getAllAdgroupId(server, user):
     assert_header(res.header, STATUS.SUCCESS)
 
 
+@formatter
 def test_getAdgroupIdByCampaignId(server=SERVER, user=DEFAULT_USER, recover=False):
     " 获取计划ID下所有单元ID "
     # return campaignAdgroupIds:[int,]
@@ -176,6 +178,7 @@ def test_getAdgroupIdByCampaignId(server=SERVER, user=DEFAULT_USER, recover=Fals
     assert_header(res.header, STATUS.SUCCESS)
 
 
+@formatter
 def test_getAdgroupByCampaignId(server=SERVER, user=DEFAULT_USER, recover=False):
     " 获取计划ID下所有单元ID "
     # return campaignAdgroups:[dict,]

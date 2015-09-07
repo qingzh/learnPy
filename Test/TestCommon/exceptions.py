@@ -3,3 +3,7 @@
 
 class UndefinedException(Exception):
     pass
+
+
+class ReadOnlyAttributeError(Exception):
+    pass

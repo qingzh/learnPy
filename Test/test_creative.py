@@ -6,23 +6,21 @@ __version__ = 1.0
 __author__ = 'Qing Zhang'
 
 from APITest.models.models import (APIData, AttributeDict)
-from TestCommon.models.const import STDOUT, BLANK
 from APITest.models.creative import *
-from APITest.settings import USERS, api, LOG_DIR
+from APITest.settings import SERVER, USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
 import collections
-from TestCommon.utils import formatter
 from APITest.models import image
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from TestCommon import ThreadLocal
-from TestCommon.exceptions import UndefinedException
 import threading
 from datetime import datetime
 import logging
 from TestCommon.utils import gen_chinese_unicode
 import urlparse
+from APITest.compat import (
+    formatter, mount, suite, ThreadLocal, STDOUT, BLANK, UndefinedException)
 ##########################################################################
 #    log settings
 
@@ -43,7 +41,6 @@ log.addHandler(output_file)
 
 ##########################################################################
 
-SERVER = settings.SERVER.BETA
 DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 
@@ -106,16 +103,6 @@ def _compare_dict(a, b):
         assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
             key, value, b[key])
 
-
-def mount(obj):
-    def decorator(func):
-        obj.__dict__[func.__name__] = func
-
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        return wrapper
-    return decorator
 #---------------------------------------------------------------
 #  添加操作
 #  正常添加
@@ -426,6 +413,9 @@ def test_deleteSublink(server, user):
 
 @mount(api.newCreative)
 def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
+    '''
+    主测试入口
+    '''
     user.get_tag(TAG_TYPE, refresh=True)
     results = ThreadLocal.get_results()
     len_before = len(results)

@@ -1,10 +1,16 @@
 #! -*- coding:utf8 -*-
 
 import json
+import logging
 from ..utils import len_unicode
 from .const import *
+import collections
+from ..exceptions import ReadOnlyAttributeError
 
-__all__ = ['AttributeDict', 'TestResult']
+__all__ = ['AttributeDict', 'TestResult', 'APIAttributeDict',
+           'ReadOnlyObject', 'PersistentAttributeObject']
+
+log = logging.getLogger(__name__)
 
 
 class AttributeDict(dict):
@@ -25,20 +31,51 @@ class AttributeDict(dict):
             # new object should be instance of self.__class__
             AttributeDict.__setitem__(self, key, value)
 
+    @property
+    def __classhook__(self):
+        return self.__class__
+
+    def __getitem__(self, key):
+        # `dict` item first
+        if key in self:
+            return super(AttributeDict, self).__getitem__(key)
+        return super(AttributeDict, self).__getattribute__(key)
+
+    '''
+    # __getattr__ 方法实际上不用实现
+    # 在获取属性的时候，会默认从 self.__class__的属性 以及 self.__dict__ 里获取
+    # 如果获取失败，才从 __getattr__ 获取
+    def __getattr__(self, key):
+        # Attribute First
+        # 这里不能用 `dir(self)`，会进入死循环，参考dir的实现逻辑
+        print '__getattr__', key
+        if key in dir(self.__class__) or key in self.__dict__:
+            return super(AttributeDict, self).__getattribute__(key)
+        return super(AttributeDict, self).__getitem__(key)
+    '''
+
     __getattr__ = dict.__getitem__
 
     def __setitem__(self, key, value):
         # Nested AttributeDict object
-        if isinstance(value, dict) and not isinstance(value, self.__class__) and issubclass(self.__class__, type(value)):
-            value = self.__class__(value)
+        log.debug('Obj: %s\nkey: %s, value: %s\n', type(self), key, value)
+        if isinstance(value, dict) and not isinstance(value, self.__classhook__) and issubclass(self.__classhook__, type(value)):
+            value = self.__classhook__(value)
+        # sequence
+        if isinstance(value, collections.MutableSequence):
+            for idx, item in enumerate(value):
+                if isinstance(item, dict) and not isinstance(item, self.__classhook__) and issubclass(self.__classhook__, type(item)):
+                    value[idx] = self.__classhook__(item)
         super(AttributeDict, self).__setitem__(key, value)
 
     def __setattr__(self, key, value):
         """
-        字典里不允许存在类默认的属性
+        不允许通过 __setattr__ 新增对象属性
+        但是允许通过 __setattr__ 修改对象已有的属性
+        如果需要新增属性，则需要修改 self.__dict__
         例如：iterkeys, __dict__ 之类
         """
-        if key in dir(self.__class__):
+        if key in dir(self.__class__) or key in self.__dict__:
             super(AttributeDict, self).__setattr__(key, value)
         else:
             self.__setitem__(key, value)
@@ -51,6 +88,66 @@ class AttributeDict(dict):
 
     def copy(self):
         return type(self)(self)
+
+
+class APIAttributeDict(AttributeDict):
+
+    @property
+    def nodes(self):
+        '''
+        get all url paths
+        '''
+        path = []
+        for v in self.itervalues():
+            if isinstance(v, AttributeDict):
+                path.extend(v.nodes)
+            else:
+                path.append(v)
+        return path
+
+
+class ReadOnlyObject(object):
+
+    def __setitem__(self, key, value):
+        raise ReadOnlyAttributeError(
+            "%s.%s is read-only!" % (self.__class__, key))
+
+    def __setattr__(self, key, value):
+        if key in dir(self.__class__):
+            super(ReadOnlyObject, self).__setattr__(key, value)
+        else:
+            raise ReadOnlyAttributeError(
+                "%s.%s is read-only!" % (self.__class__, key))
+
+
+class PersistentAttributeObject(object):
+
+    def __setitem__(self, key, value):
+        if getattr(self, key, BLANK) is BLANK:
+            raise KeyError(
+                "%s.%s is not exist!" % (self.__class__, key))
+        super(PersistentAttributeObject, self).__setitem__(key, value)
+
+    def __setattr__(self, key, value):
+        if key in dir(self.__class__):
+            super(PersistentAttributeObject, self).__setattr__(key, value)
+        else:
+            PersistentAttributeDict.__setitem__(self, key, value)
+
+    def update(self, *args, **kwargs):
+        _dict = dict(*args, **kwargs)
+        if set(_dict).issubset(self) is False:
+            raise KeyError("Can NOT add keys: %s!" %
+                           (set(_dict).difference(self)))
+        for key, value in _dict.iteritems():
+            # super(PersistentAttributeObject, self).__setitem__(key, value)
+            self.__setitem__(key, value)
+
+    def update_existed(self, *args, **kwargs):
+        _dict = dict(*args, **kwargs)
+        for key, value in _dict.iteritems():
+            if key in self:
+                self.__setitem__(key, value)
 
 
 def _pretty_description(s, width=WIDTH.DESCRIPTION, encoding='utf8'):

@@ -8,7 +8,7 @@ import json
 import requests
 from requests.exceptions import MissingSchema
 import collections
-from TestCommon.models.const import BLANK
+from ..compat import BLANK, AttributeDict, APIAttributeDict, ReadOnlyObject, PersistentAttributeObject
 
 log = logging.getLogger(__name__)
 
@@ -40,127 +40,12 @@ def json_dump_decorator(func):
     return json_dump_wrapper
 
 
-class ReadOnlyAttributeError(Exception):
-    pass
-
-
-class ReadOnlyObject(object):
-
-    def __setitem__(self, key, value):
-        raise ReadOnlyAttributeError(
-            "%s.%s is read-only!" % (self.__class__, key))
-
-    def __setattr__(self, key, value):
-        if key in dir(self.__class__):
-            super(ReadOnlyObject, self).__setattr__(key, value)
-        else:
-            raise ReadOnlyAttributeError(
-                "%s.%s is read-only!" % (self.__class__, key))
-
-
-class PersistentAttributeObject(object):
-    __marker__ = object()
-
-    def __setitem__(self, key, value):
-        if getattr(self, key, self.__marker__) is self.__marker__:
-            raise KeyError(
-                "%s.%s is not exist!" % (self.__class__, key))
-        super(PersistentAttributeObject, self).__setitem__(key, value)
-
-    def __setattr__(self, key, value):
-        if key in dir(self.__class__):
-            super(PersistentAttributeObject, self).__setattr__(key, value)
-        else:
-            PersistentAttributeDict.__setitem__(self, key, value)
-
-    def update(self, *args, **kwargs):
-        _dict = dict(*args, **kwargs)
-        if set(_dict).issubset(self) is False:
-            raise KeyError("Can NOT add keys: %s!" %
-                           (set(_dict).difference(self)))
-        for key, value in _dict.iteritems():
-            # super(PersistentAttributeObject, self).__setitem__(key, value)
-            self.__setitem__(key, value)
-
-    def update_existed(self, *args, **kwargs):
-        _dict = dict(*args, **kwargs)
-        for key, value in _dict.iteritems():
-            if key in self:
-                self.__setitem__(key, value)
-
-
-class AttributeDict(dict):
-
-    '''
-    怎么剥离出 property
-    定义了 property 但是会跳到dict内容
-    只能把 dict 剥离出来当成一个内部变量？
-    '''
-
-    def __init__(self, *args, **kwargs):
-        """
-        take care of nested dict
-        """
-        super(AttributeDict, self).__init__(*args, **kwargs)
-        for key, value in self.iteritems():
-            # Nested AttributeDict object
-            # new object should be instance of self.__class__
-            AttributeDict.__setitem__(self, key, value)
-
-    @property
-    def __classhook__(self):
-        return self.__class__
-
-    __getattr__ = dict.__getitem__
-
-    def __setitem__(self, key, value):
-        # Nested AttributeDict object
-        log.debug('Obj: %s\nkey: %s, value: %s\n', type(self), key, value)
-        if isinstance(value, dict) and not isinstance(value, self.__classhook__) and issubclass(self.__classhook__, type(value)):
-            value = self.__classhook__(value)
-        # sequence
-        if isinstance(value, collections.MutableSequence):
-            for idx, item in enumerate(value):
-                if isinstance(item, dict) and not isinstance(item, self.__classhook__) and issubclass(self.__classhook__, type(item)):
-                    value[idx] = self.__classhook__(item)
-        super(AttributeDict, self).__setitem__(key, value)
-
-    def __setattr__(self, key, value):
-        """
-        字典里不允许存在类默认的属性
-        例如：iterkeys, __dict__ 之类
-        """
-        if key in dir(self.__class__):
-            super(AttributeDict, self).__setattr__(key, value)
-        else:
-            self.__setitem__(key, value)
-
-    def json(self, allow_null=None, filter=None):
-        return json.dumps(self)
-
-    @property
-    def nodes(self):
-        '''
-        get all url paths
-        '''
-        path = []
-        for v in self.itervalues():
-            if isinstance(v, AttributeDict):
-                path.extend(v.nodes)
-            else:
-                path.append(v)
-        return path
-
-    def copy(self):
-        return type(self)(self)
-
-
-class ReadOnlyAttributeDict(ReadOnlyObject, AttributeDict):
+class ReadOnlyAttributeDict(ReadOnlyObject, APIAttributeDict):
 
     pass
 
 
-class PersistentAttributeDict(PersistentAttributeObject, AttributeDict):
+class PersistentAttributeDict(PersistentAttributeObject, APIAttributeDict):
     pass
 
 

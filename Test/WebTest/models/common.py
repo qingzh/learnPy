@@ -387,12 +387,23 @@ class AlertElement(InputElement):
 # Container/Page 类
 
 
+class ParentProperty(object):
+
+    def __get__(self, obj, objtype):
+        return obj._parent
+
+    def __set__(self, obj, value):
+        obj.pset(value)
+
+
 class BasePage(object):
 
     def __init__(self, parent, by=None, locator=None):
-        self.parent = parent
+        self._parent = parent
         self.by = by
         self.locator = locator
+
+    parent = ParentProperty()
 
     @property
     def root(self):
@@ -421,12 +432,7 @@ class BaseContainer(BasePage):
         self.by = by
         self.locator = locator
 
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
+    def pset(self, value):
         self._parent = value
 
     def _click_parent(self):
@@ -486,12 +492,7 @@ class ListContainer(BaseContainer, ListMixin):
         self._subobj = subobj or BaseElement
         self._visible = visible
 
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
+    def pset(self, value):
         '''
         TODO: Initialized with `WebElement` ?
         `self.subobj(WebElement)`
@@ -556,12 +557,7 @@ class DictContainer(BaseContainer, DictMixin):
         self._key = key or (lambda x: x.text.strip())
         self._visible = visible
 
-    @property
-    def parent(self):
-        return self._parent
-
-    @parent.setter
-    def parent(self, value):
+    def pset(self, value):
         self._parent = value
         root = self.root
         '''

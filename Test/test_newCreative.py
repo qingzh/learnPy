@@ -11,12 +11,10 @@ from APITest.models.const import STATUS
 from APITest.models.models import APIData, AttributeDict
 from APITest.models.newCreative import *
 from APITest import settings
-from APITest.settings import USERS, api, LOG_DIR
+from APITest.settings import SERVER, USERS, api, LOG_DIR
 from APITest.utils import assert_header
-from TestCommon import ThreadLocal
-from TestCommon.utils import formatter, mount, suite
-from TestCommon.models.const import STDOUT, BLANK
-from TestCommon.exceptions import UndefinedException
+from APITest.compat import (
+    formatter, mount, suite, ThreadLocal, STDOUT, BLANK, UndefinedException)
 from datetime import datetime
 import collections
 import threading
@@ -41,7 +39,6 @@ log.addHandler(output_file)
 
 ##########################################################################
 
-SERVER = settings.SERVER.BETA
 DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 
@@ -77,6 +74,13 @@ locals().update(api.newCreative)
 _local_ = threading.local()
 GLOBAL = _local_.__dict__.setdefault('global', {})
 
+
+def _compare_dict(a, b):
+    for key, value in a.iteritems():
+        if value is None:
+            continue
+        assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
+            key, value, b[key])
 #-------------------------------------------------------------------------
 
 
@@ -197,8 +201,8 @@ def test_getSublink(server, user):
     sublink = res.body.sublinkTypes[0]
     # It's IMPORTANT to convert `sublink` to `SublinkType`
     GLOBAL['sublink']['output'] = sublink
-    assert GLOBAL['sublink']['input'] <= sublink and sublink.sublinkInfos == GLOBAL['sublink']['input']['sublinkInfos'], 'Sublink content differ!\nExpected: %s\nActually: %s\n' % (
-        GLOBAL['sublink']['input'], sublink)
+    assert GLOBAL['sublink']['input']['sublinkInfos'] == sublink.sublinkInfos, 'SublinkInfos Differ!\nExpected: %s\nActually: %s\n' % (GLOBAL['sublink']['input']['sublinkInfos'], sublink.sublinkInfos)
+    _compare_dict(GLOBAL['sublink']['input'], sublink)
 
 
 def _updateSublink_and_assert(server, user, sublink):

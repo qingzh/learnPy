@@ -9,7 +9,6 @@ _thread_locals.entries = {}
 
 #---------------------------------------------------------------------------
 #  Store results of test suite
-
 def get_results():
     if not hasattr(_thread_locals, 'results'):
         _thread_locals.results = []

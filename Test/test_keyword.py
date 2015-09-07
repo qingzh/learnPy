@@ -7,9 +7,9 @@ __author__ = 'Qing Zhang'
 
 from APITest.models.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
-from TestCommon.utils import formatter
+from APITest.compat import formatter
 from APITest.models.keyword import *
-from APITest.settings import USERS, api, LOG_DIR
+from APITest.settings import SERVER, USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
 import collections
@@ -41,7 +41,6 @@ log.addHandler(output_file)
 
 ##########################################################################
 
-SERVER = settings.SERVER.BETA
 DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 
@@ -247,8 +246,8 @@ def test_getKeywordStatus(server, user):
     res_by_campaign.body.keywordStatus.sort(key=lambda x: x.id)
 
     def assert_func(x, y, key):
-        assert x.body == y.body, 'KeywordStatus by %s differ!\n%s\n%s\n' % (
-            key, x.body, y.body)
+        assert x.body == y.body, 'KeywordStatus by %s differ!\nRequest Body: %s\n%s\n%s\n' % (
+            key, y.request.body, x.body, y.body)
 
     assert_func(res_by_account, res_by_campaign, 'campaignIds')
 
