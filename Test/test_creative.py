@@ -102,6 +102,7 @@ def _compare_dict(a, b):
             continue
         assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
             key, value, b[key])
+    return True
 
 #---------------------------------------------------------------
 #  添加操作

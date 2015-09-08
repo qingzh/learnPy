@@ -34,21 +34,11 @@ uri, 输入的json
 
 
 import requests
-import sys
-import json
-from APITest.model.models import AttributeDict, TestRequest, APIData, _slots_class
-from APITest.settings import api, USERS
-from APITest.utils import write_file
-import itertools
+from APITest.compat import AttributeDict, STDOUT
 import re
-import os
-import xlrd
 import logging
-from APITest.model.models import log_stdout
-import urlparse
-from lxml import etree
 from itertools import izip
-
+from TestCommon.models.httplib import ServerInfo, HttpServer
 ##########################################################################
 #   logging settings
 
@@ -56,8 +46,8 @@ __loglevel__ = logging.DEBUG
 
 log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
-log_stdout.setLevel(__loglevel__)
-log.addHandler(log_stdout)
+STDOUT.setLevel(__loglevel__)
+log.addHandler(STDOUT)
 
 _encode_params = requests.PreparedRequest._encode_params
 
@@ -192,8 +182,50 @@ frontState = {
         '3': u'推广中',
     },
 }
-level_map = [None, 'user', 'plan', 'unit', 'winfo', 'idea', 'app',
-             'phone', 'xiJin', 'ideaPro', 'ideaProPic', 'ideaProApp']
+level_map = {
+    'user': 1,
+    'plan': 2,
+    'unit': 3,
+    'winfo': 4,
+    'idea': 5,
+    'app': 6,
+    'phone': 7,
+    'xiJin': 8,
+    'ideaPro': 9,
+    'ideaProPic': 10,
+    'ideaProApp': 11}
+
+level_map_reversed = {
+    1: 'user',
+    2: 'plan',
+    3: 'unit',
+    4: 'winfo',
+    5: 'idea',
+    6: 'app',
+    7: 'phone',
+    8: 'xiJin',
+    9: 'ideaPro',
+    10: 'ideaProPic',
+    11: 'ideaProApp'}
+
+
+def _assert_response(res, context):
+    condition = res.json(object_hook=AttributeDict).data.queryCondition
+    assert condition.userId == context.uid
+    assert condition.currentPage == context.reqPageIndex
+    assert condition.pageSize == context.recordPerPage
+    # assert batch ids
+    assert condition.isQueryAll == context.bizParam.get(
+        'onlyBatchIdList', False)
+    # assert filter
+    # TODO: 这里返回的是 int，但是传入参数却要求是 string
+    assert str(condition.get('state', None)) == str(context.filterMapJson.get(
+        'frontState', None))
+    # assert order
+    assert condition.ascend == (
+        context.bizParam.get('orderValue', None) is True)
+    assert sortField.get(condition.get('sortField', None), None) == orderName.get(
+        context.bizParam.get('orderName', None), None)
 
 
 class Context(AttributeDict):
@@ -264,7 +296,11 @@ class Context(AttributeDict):
             self.onlyBatchIdList = value
 
     def set_level(self, level):
-        self.level = level
+        try:
+            level = int(level)
+            self.level = level
+        except ValueError:
+            self.level = level_map.get(level.lower())
 
     def set_uid(self, uid):
         self.uid = uid
@@ -289,141 +325,13 @@ class Context(AttributeDict):
     def prepare(self):
         return {'context': [self.context.json()]}
 
-
-def _prepare_server(server):
-    '''
-    namedtuple('ParseResult', 'scheme netloc path params query fragment')
-    '''
-    parsed = list(urlparse.urlparse(server))
-    parsed[0] = parsed[0] or 'http'
-    if not parsed[1]:
-        parsed[1] = parsed[2]
-        parsed[2] = ''
-    return urlparse.urlunparse(parsed)
-
-
-class HttpServer(object):
-
-    def __init__(self, session, server, username, password, headers=None):
-        self.session = session
-        self.server = server
-        self.username = username
-        self.password = password
-        self.headers = headers
-        self._assertion = True
-        self.history = []
-
     @property
-    def server(self):
-        return self._server
-
-    @server.setter
-    def server(self, value):
-        self._server = _prepare_server(value)
-
-    def __repr__(self):
-        return repr(self.__dict__)
-
-    def set_cookies_from_driver(self, driver):
-        for cookie in driver.get_cookies():
-            if 'expiry' in cookie:
-                cookie['expires'] = cookie.pop('expiry')
-            self.session.cookies.set_cookie(
-                requests.cookies.create_cookie(**cookie))
-
-    def prepare_cookies(self):
-        '''
-        @param session: session
-        @param server: server address
-        @param username: username
-        @param password: password
-        @return `RequestsCookieJar`: cookies of login account
-        '''
-        r = self.session.get(self.server)
-        assert r.status_code == 200, 'Failed to get page "%s": %d Error' % (
-            self.server, r.status_code)
-        page = etree.HTML(r.content)
-
-        payload = {}
-        for e in page.xpath('//input'):
-            payload[e.get('name')] = e.get('value')
-        payload.update(
-            username=self.username,  password=self.password,  captchaResponse='1')
-
-        res = self.session.post(
-            r.url, verify=False, data=payload, headers=self.headers)
-        assert 'login' not in res.url.lower(), 'Login failed!'
-
-    @property
-    def cookies(self):
-        '''
-        @return RequestsCookieJar: self.session.cookies
-        '''
-        if isinstance(self.session, requests.Session):
-            return self.session.cookies
-        return None
-
-    def _assert_response(self, res, context):
-        condition = res.json(object_hook=AttributeDict).data.queryCondition
-        assert condition.userId == context.uid
-        assert condition.currentPage == context.reqPageIndex
-        assert condition.pageSize == context.recordPerPage
-        # assert batch ids
-        assert condition.isQueryAll == context.bizParam.get(
-            'onlyBatchIdList', False)
-        # assert filter
-        # TODO: 这里返回的是 int，但是传入参数却要求是 string
-        assert str(condition.get('state', None)) == str(context.filterMapJson.get(
-            'frontState', None))
-        # assert order
-        assert condition.ascend == (
-            context.bizParam.get('orderValue', None) is True)
-        assert sortField.get(condition.get('sortField', None), None) == orderName.get(
-            context.bizParam.get('orderName', None), None)
-
-    def post(self, context, assertion=None):
-        '''
-        `POST` context to `customizedList.json`
-        '''
-        if assertion is None:
-            assertion = self._assertion
-        url = self._get_url(context.level)
-        print url, self.headers
-        res = self.session.post(
-            url, data=context.prepare(), headers=self.headers)
-        if assertion:
-            self._assert_response(res, context)
-        return res
-
-    def _get_url(self, level):
-        '''
-        Produce the `customizedList.json` url
-
-        | UserLevel | 1 | 账户 |
-        | PlanLevel | 2 | 计划 |
-        | UnitLevel | 3 | 单元|
-        | WinfoLevel | 4 | 关键词 |
-        | IdeaLevel | 5 | 创意 |
-        | AppLevel | 8 | APP |
-        | PhoneLevel | 9 | 电话 |
-        | XiJingLevel | 10 | 蹊径 |
-        '''
-        # parsedUrl = urlparse.urlparse(server)
-        # parsedUrl.scheme = parsedUrl.scheme or 'http'
-        return urlparse.urljoin(
-            self.server, '/cpc/%s/customizedList.json' % level_map[level])
+    def uri(self):
+        return level_map_reversed.get(self.level)
 
 
-class ServerInfo(object):
-
-    def __init__(self, username, password, userid, server):
-        self.username = username
-        self.password = password
-        self.userid = userid
-        self.server = server
-
-info_A = ServerInfo(u'携程旅行网', 'pd123456', 1061, '42.120.168.65')
-info_B = ServerInfo(u'携程旅行网', 'pd123456', 1061, '42.120.172.21')
+info_A = ServerInfo('smdev', 'smdevsmdev', 1061, 'e.sm.cn')
+info_B = ServerInfo('smdev', 'smdevsmdev', 1061, '42.120.172.21')
 
 '''
 USERNAME = 'ShenmaPM2.5'
@@ -512,7 +420,8 @@ B = TestObject(info_B)
 
 def compare_between_servers(a, b):
     '''
-    path, query, timec
+    path, query, time
+    设置了层级
     '''
     a.context.update(level=3)
     a.context.set_date(startDate, endDate)
@@ -522,3 +431,68 @@ def compare_between_servers(a, b):
     # "显示全部"
     # entries.append(server.post(context))
     return a, b
+
+
+def test(uid, s):
+    context = Context(uid=uid)
+    context.set_date(startDate, endDate)
+    context.set_level('plan')
+    context.recordPerPage = 500
+    # 不排序
+    # yield s.post(context)
+    for order in orderName.keys():
+        for value in orderValue.keys():
+            context.set_order(order, value)
+            yield s.post(context)
+
+
+def _compare_dict(a, b):
+    for key, value in a.iteritems():
+        if value is None or key not in b:
+            continue
+        assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
+            key, a, b)
+    return True
+
+import urlparse
+
+
+def compare(uid, s_list):
+    g_list = []
+    for s in s_list:
+        g_list.append(test(uid, s))
+
+    g_base = g_list.pop()
+    while True:
+        r_base = next(g_base, None)
+        if r_base is None:
+            break
+        d_base = r_base.json(object_hook=AttributeDict)
+        for g in g_list:
+            r = next(g)
+            assert r.request.body == r_base.request.body, '%s != %s' % (
+                r.request.body, r_base.request.body)
+            print urlparse.parse_qs(r.request.body)
+            d = r.json(object_hook=AttributeDict)
+            assert d.status == d_base.status, '%s != %s' % (
+                d.status, d_base.status)
+            _compare_dict(d_base.data.queryCondition, d.data.queryCondition)
+            all(_compare_dict(x, y)
+                for x, y in izip(d_base.data.target, d.data.target))
+
+
+def post(self, context, assertion=None):
+    '''
+    `POST` context to `customizedList.json`
+    '''
+    if assertion is None:
+        assertion = self._assertion
+    url = self._get_url(context)
+    res = self.session.post(
+        url, data=context.prepare(), headers=self.headers, verify=False)
+    if assertion:
+        for func in self._assertion:
+            func(res, context)
+    return res
+
+HttpServer.post = post

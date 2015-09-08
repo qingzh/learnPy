@@ -2,9 +2,8 @@
 
 import json
 import logging
-from ..utils import len_unicode
+from ..utils import len_unicode, is_sequence
 from .const import *
-import collections
 from ..exceptions import ReadOnlyAttributeError
 
 __all__ = ['AttributeDict', 'TestResult', 'APIAttributeDict',
@@ -56,16 +55,23 @@ class AttributeDict(dict):
 
     __getattr__ = dict.__getitem__
 
+    def _is_parent_instance(self, value):
+        '''
+        return issubclass(self.__classhook__, type(value)) and \
+            not isinstance(value, self.__classhook__)
+        '''
+        return type(value) in self.__classhook__.__mro__[1:]
+
     def __setitem__(self, key, value):
         # Nested AttributeDict object
         log.debug('Obj: %s\nkey: %s, value: %s\n', type(self), key, value)
-        if isinstance(value, dict) and not isinstance(value, self.__classhook__) and issubclass(self.__classhook__, type(value)):
-            value = self.__classhook__(value)
         # sequence
-        if isinstance(value, collections.MutableSequence):
+        if is_sequence(value):
             for idx, item in enumerate(value):
-                if isinstance(item, dict) and not isinstance(item, self.__classhook__) and issubclass(self.__classhook__, type(item)):
+                if self._is_parent_instance(item):
                     value[idx] = self.__classhook__(item)
+        elif self._is_parent_instance(value):
+            value = self.__classhook__(value)
         super(AttributeDict, self).__setitem__(key, value)
 
     def __setattr__(self, key, value):
@@ -79,6 +85,14 @@ class AttributeDict(dict):
             super(AttributeDict, self).__setattr__(key, value)
         else:
             self.__setitem__(key, value)
+
+    def __call__(self, *args, **kwargs):
+        '''
+
+        self.update(...)
+        '''
+        super(AttributeDict, self).update(*args, **kwargs)
+        return self
 
     def __str__(self):
         return json.dumps(self)
