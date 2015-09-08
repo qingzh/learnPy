@@ -16,10 +16,9 @@ import logging
 import threading
 from requests.utils import unquote
 import json
-import urlparse
 from selenium.webdriver import Chrome, Firefox
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-
+from TestCommon.models.httplib import PerformanceEntry
 
 '''
 ######################################################################
@@ -137,6 +136,36 @@ caps = DesiredCapabilities.CHROME
 caps['loggingPrefs'] = {'performance': 'ALL'}
 # cr = Chrome(desired_capabilities=caps)
 
+from selenium.webdriver.common.proxy import Proxy, ProxyType
+
+myProxy = "127.0.0.1:4444"
+
+proxy = Proxy({
+    'proxyType': ProxyType.MANUAL,
+    'httpProxy': myProxy,
+    'ftpProxy': myProxy,
+    'sslProxy': myProxy,
+    'noProxy': '',  # set this value as desired
+})
+# proxy.add_to_capabilities(caps)
+
+######################################################################
+#  Capture Network Traffic
+#  Start the browser in "proxy-injection mode"
+#   http://stackoverflow.com/questions/3712278/selenium-rc-how-do-you-use-capturenetworktraffic-in-python
+# https://groups.google.com/forum/#!topic/selenium-users/v7rdTChQkbM
+
+"""
+from selenium import webdriver
+
+driver = webdriver.Firefox(proxy=proxy)
+
+# for remote
+caps = webdriver.DesiredCapabilities.FIREFOX.copy()
+proxy.add_to_capabilities(caps)
+
+driver = webdriver.Remote(desired_capabilities=caps)
+"""
 ######################################################################
 
 
@@ -169,60 +198,10 @@ def edit_single(driver):
     assert element.unitName.text == name
 
 ######################################################################
-#  Capture Tiem delta with `Crhome`
-# caps['loggingPrefs'] = {'performance': 'ALL'}
-# cr = Chrome(desired_capabilities=caps)
 
 
 TIME_LOGGER = logging.getLogger('time-delta')
 TIMEINFO = TIME_LOGGER.info
-
-
-class PerformanceEntry(SlotsDict):
-    _parsed = None
-    _parsed_query = None
-    __slots__ = ['secureConnectionStart',
-                 'redirectStart',
-                 'redirectEnd',
-                 'name',
-                 'startTime',
-                 'domainLookupEnd',
-                 'connectEnd',
-                 'requestStart',
-                 'initiatorType',
-                 'responseEnd',
-                 'fetchStart',
-                 'duration',
-                 'responseStart',
-                 'entryType',
-                 'connectStart',
-                 'domainLookupStart',
-                 '_parsed',
-                 '_parsed_query']
-
-    def __init__(self, *args, **kwargs):
-        # TODO: not compatible with nested dict
-        super(SlotsDict, self).__init__(*args, **kwargs)
-
-    def __hash__(self):
-        return hash(tuple(self.values()))
-
-    @property
-    def processingTime(self):
-        return self.responseStart - self.requestStart
-
-    @property
-    def parsed(self):
-        if self._parsed is None:
-            self._parsed = urlparse.urlparse(self.name)
-        return self._parsed
-
-    @property
-    def parsed_query(self):
-        if self._parsed_query is None:
-            self._parsed_query = AttributeDict(
-                urlparse.parse_qs(self.parsed.query))
-        return self._parsed_query
 
 
 def time_delta_list(driver, initiatorType="xmlhttprequest"):
@@ -297,35 +276,6 @@ class PageArea(AttributeDict):
         if self.totalPage > 1:
             return random.randint(2, self.totalPage)
         return None
-######################################################################
-#  Capture Network Traffic
-#  Start the browser in "proxy-injection mode"
-#   http://stackoverflow.com/questions/3712278/selenium-rc-how-do-you-use-capturenetworktraffic-in-python
-# https://groups.google.com/forum/#!topic/selenium-users/v7rdTChQkbM
-
-"""
-from selenium import webdriver
-from selenium.webdriver.common.proxy import *
-
-myProxy = "host:8080"
-
-proxy = Proxy({
-    'proxyType': ProxyType.MANUAL,
-    'httpProxy': myProxy,
-    'ftpProxy': myProxy,
-    'sslProxy': myProxy,
-    'noProxy': ''  # set this value as desired
-})
-
-driver = webdriver.Firefox(proxy=proxy)
-
-# for remote
-caps = webdriver.DesiredCapabilities.FIREFOX.copy()
-proxy.add_to_capabilities(caps)
-
-driver = webdriver.Remote(desired_capabilities=caps)
-"""
-######################################################################
 
 import requests
 from requests import cookies
@@ -476,6 +426,6 @@ if __name__ == '__main__':
 
 # ---------------------------------------------------
 from WebTest.models.common import log as web_log
-from TestCommon.models.const import STDOUT
+from APITest.compat import STDOUT
 web_log.setLevel(logging.DEBUG)
 # web_log.addHandler(STDOUT)

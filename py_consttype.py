@@ -1,13 +1,3 @@
-#! -*- coding:utf8 -*-
-
-'''
-store `const` in common
-'''
-import logging
-import sys
-
-STDOUT = logging.StreamHandler(sys.stdout)
-
 
 class ConstType(type):
 
@@ -59,7 +49,3 @@ class WIDTH(ConstObject):
     DESCRIPTION = 76
     STATUS = 5
     RUNTIME = 6
-
-
-class CPC_LEVEL(ConstObject):
-    pass

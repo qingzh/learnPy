@@ -4,9 +4,9 @@ from .models.common import TestResult
 from .models.const import STATUS
 from .exceptions import UndefinedException
 from time import clock
-import collections
 from functools import wraps
 from . import ThreadLocal
+from .utils import is_sequence
 
 
 def secondsToStr(t):
@@ -57,30 +57,10 @@ def mount(obj):
     return decorator
 
 
-"""
-def suite(labels):
-    if not isinstance(labels, collections.MutableSequence):
-        labels = [labels]
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-        suites = ThreadLocal.get_suites()
-        suites['ALL'].add(wrapper)
-        for label in labels:
-            suites[label].add(wrapper)
-        return wrapper
-    return decorator
-"""
-
-
 class suite(object):
 
     def __init__(self, labels):
-        if not isinstance(labels, collections.MutableSequence):
-            labels = [labels]
-        self.labels = labels
+        self.labels = is_sequence(labels, convert=True)
 
     def __call__(self, func):
         suites = ThreadLocal.get_suites()

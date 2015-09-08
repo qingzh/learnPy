@@ -91,15 +91,15 @@ class FormContainer(BaseContainer):
     level = ContainerElement(
         By.CSS_SELECTOR, 'div.level-radios',
         DictContainer, subxpath='./input', subobj=InputElement,
-        key=lambda x: x.get_attribute('data-level'))
+        key=lambda x: x.find_element(By.XPATH, './following-sibling::span').text.strip())
     dateType = ContainerElement(
         By.CSS_SELECTOR, 'div.date-radios',
         DictContainer, subxpath='./input', subobj=InputElement,
-        key=lambda x: x.find_element(By.XPATH, './following-sibling::*').text.strip())
+        key=lambda x: x.find_element(By.XPATH, './following-sibling::span').text.strip())
     dataMain = ContainerElement(
         By.CSS_SELECTOR, 'div.date-select',
         DictContainer, subxpath='./input', subobj=InputElement,
-        key=lambda x: x.find_element(By.XPATH, './following-sibling::*').text.strip())
+        key=lambda x: x.find_element(By.XPATH, './following-sibling::span').text.strip())
     confirm = InputElement(By.CSS_SELECTOR, 'div.fn-clear a.sub_btn')
 
     def set_date(self, start, end):

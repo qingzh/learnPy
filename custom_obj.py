@@ -7,12 +7,18 @@
 import json
 from itertools import chain
 import collections
+<<<<<<< HEAD
+=======
+import logging
+>>>>>>> master
 
-SEQUENCE_TYPE = (list, tuple, set)
+log = logging.getLogger(__name__)
 
 
-class TT(object):
-    __slots__ = ['ab', 'bc']
+def is_sequence(value):
+    if isinstance(value, basestring):
+        return False
+    return isinstance(value, collections.Sequence)
 
 
 class ImmutableError(Exception):
@@ -132,14 +138,41 @@ class AttributeDict(dict):
     def __classhook__(self):
         return self.__class__
 
+    @property
+    def __classhook__(self):
+        return self.__class__
+
+    def __getitem__(self, key):
+        # `dict` item first
+        if key in self:
+            return super(AttributeDict, self).__getitem__(key)
+        return super(AttributeDict, self).__getattribute__(key)
+
+    '''
+    # __getattr__ 方法实际上不用实现
+    # 在获取属性的时候，会默认从 self.__class__的属性 以及 self.__dict__ 里获取
+    # 如果获取失败，才从 __getattr__ 获取
     def __getattr__(self, key):
-        ''' What's the difference vs.
-        __getattr__ = dict.__getitem__
+        # Attribute First
+        # 这里不能用 `dir(self)`，会进入死循环，参考dir的实现逻辑
+        print '__getattr__', key
+        if key in dir(self.__class__) or key in self.__dict__:
+            return super(AttributeDict, self).__getattribute__(key)
+        return super(AttributeDict, self).__getitem__(key)
+    '''
+
+    __getattr__ = dict.__getitem__
+
+    def _is_parent_instance(self, value):
         '''
-        return super(self.__class__, self).__getitem__(key)
+        return issubclass(self.__classhook__, type(value)) and \
+            not isinstance(value, self.__classhook__)
+        '''
+        return type(value) in self.__classhook__.__mro__[1:]
 
     def __setitem__(self, key, value):
         # Nested AttributeDict object
+<<<<<<< HEAD
         if isinstance(value, dict) and not isinstance(value, self.__classhook__) and issubclass(self.__classhook__, type(value)):
             value = self.__classhook__(value)
         # sequence
@@ -147,20 +180,32 @@ class AttributeDict(dict):
             for idx, item in enumerate(value):
                 if isinstance(item, dict) and not isinstance(item, self.__classhook__) and issubclass(self.__classhook__, type(item)):
                     value[idx] = self.__classhook__(item)
+=======
+        log.debug('Obj: %s\nkey: %s, value: %s\n', type(self), key, value)
+        # sequence
+        if is_sequence(value):
+            for idx, item in enumerate(value):
+                if self._is_parent_instance(item):
+                    value[idx] = self.__classhook__(item)
+        elif self._is_parent_instance(value):
+            value = self.__classhook__(value)
+>>>>>>> master
         super(AttributeDict, self).__setitem__(key, value)
 
     def __setattr__(self, key, value):
         """
-        字典里不允许存在类默认的属性
+        不允许通过 __setattr__ 新增对象属性
+        但是允许通过 __setattr__ 修改对象已有的属性
+        如果需要新增属性，则需要修改 self.__dict__
         例如：iterkeys, __dict__ 之类
         """
-        if key in dir(self.__class__):
+        if key in dir(self.__class__) or key in self.__dict__:
             super(AttributeDict, self).__setattr__(key, value)
         else:
             # TODO: trap here? `self` or `super`
-            # What's the difference vs.
-            # self.__setitem__(key, value)
-            AttributeDict.__setitem__(self, key, value)
+            # What's the difference vs `AttributeDict.__setitem__`
+            # think about `SlotsDict`
+            self.__setitem__(self, key, value)
 
     def __call__(self, *args, **kwargs):
         '''
@@ -170,14 +215,22 @@ class AttributeDict(dict):
         super(AttributeDict, self).update(*args, **kwargs)
         return self
 
+<<<<<<< HEAD
     def copy(self):
         return type(self)(self)
+=======
+    def __str__(self):
+        return json.dumps(self)
+>>>>>>> master
 
     def json(self, allow_null=None, filter=None, header=False):
         '''
         return json-formated string
         '''
         return json.dumps(self)
+
+    def copy(self):
+        return type(self)(self)
 
     @property
     def nodes(self):
@@ -337,7 +390,7 @@ class SlotsMeta(type):
     def __new__(cls, name, bases, attrs):
         print 'SlotsMeta __new__', name
         # attrs maybe a list
-        if isinstance(attrs, SEQUENCE_TYPE):
+        if is_sequence(attrs):
             attrs = dict.fromkeys(attrs, None)
         attrs['__slots__'] = tuple(attrs)
         return super(SlotsMeta, cls).__new__(cls, name, bases, attrs)
