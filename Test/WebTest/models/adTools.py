@@ -1,9 +1,26 @@
 #! -*- coding:utf8 -*-
 
 from .common import *
-from ..compat import By, WebElement
+from ..compat import By, WebElement, AttributeDict
 from ..utils import kwargs_dec
-import collections
+import json
+
+
+class Where(AttributeDict):
+
+    def __init__(self, uid, where):
+        self.uid = uid
+        self.where = where
+
+    @property
+    def where(self):
+        return self['where']
+
+    @where.setter
+    def where(self, value):
+        if not isinstance(value, basestring):
+            value = json.dumps(value)
+        self['where'] = value
 
 
 class HeaderContainer(BaseContainer):
@@ -84,6 +101,9 @@ class TableContainer(BaseContainer):
         self.page_index = value
         self.page_confirm = True
 
+    def set_order(self, order, value):
+        self.order[order] = value
+
 
 class FormContainer(BaseContainer):
     date = ContainerElement(
@@ -103,6 +123,10 @@ class FormContainer(BaseContainer):
     confirm = InputElement(By.CSS_SELECTOR, 'div.fn-clear a.sub_btn')
 
     def set_date(self, start, end):
+        if not isinstance(start, basestring):
+            start = str(start)
+        if not isinstance(end, basestring):
+            end = str(end)
         self.date.set_date(start, end)
 
     def set_data(self, level=None, dateType=None, dataMain=None):
@@ -115,6 +139,18 @@ class FormContainer(BaseContainer):
 
     def submit(self):
         self.confirm = True
+
+    def __call__(self, date=None, level=None, dateType=None, dataMain=None, submit=None):
+        if date:
+            self.set_date(*date)
+        if level:
+            self.level = level
+        if dateType:
+            self.dateType = dateType
+        if dataMain:
+            self.dataMain = dataMain
+        if submit:
+            self.confirm = submit
 
 
 class ReportContainer(BaseContainer):

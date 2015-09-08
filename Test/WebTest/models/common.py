@@ -18,7 +18,7 @@ TODO:
 
 from ..utils import *
 from ..compat import (
-    By, WebElement, NoSuchElementException, ElementNotVisibleException)
+    By, WebElement, WebDriver, NoSuchElementException, ElementNotVisibleException, OrderedDict)
 from APITest.models.models import _slots_class
 import logging
 
@@ -416,6 +416,18 @@ class BasePage(object):
         else:
             return self.parent
 
+    @property
+    def text(self):
+        '''
+        根节点获得的 text 信息
+        用来粗糙对比两个页面的文本一致，但是无法比较css样式等
+        '''
+        root = self.root
+        if isinstance(root, WebDriver):
+            return root.find_element_by_xpath('//html').text
+        # isinstance(root, WebElement):
+        return root.text
+
 
 class BaseContainer(BasePage):
 
@@ -520,6 +532,11 @@ class ListContainer(BaseContainer, ListMixin):
         )
         # TODO: `BaseContainer` ??
 
+    @property
+    def selected(self):
+        for element in self:
+            if elemet.is_selected():
+                yield element
 '''
 
 怎么实现 .items, .iteritems() 并实现赋值
@@ -592,6 +609,12 @@ class DictContainer(BaseContainer, DictMixin):
             for i, x in items
         ))
 
+    @property
+    def selected(self):
+        for key in self.keys():
+            element = self[key]
+            if element.is_selected():
+                yield key
 
 ##########################################################################
 #   其他

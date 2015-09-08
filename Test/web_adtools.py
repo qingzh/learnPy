@@ -1,5 +1,13 @@
 #! -*- coding:utf8 -*-
+'''
+推广工具 数据报告
+page.body.form
+1. date 是选择日期范围
+1. level 是选择数据类型
+1. dateType 是选择日期类型
+1. dataMain 是选择报告主体
 
+'''
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
@@ -19,6 +27,12 @@ import json
 from selenium.webdriver import Chrome, Firefox
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from TestCommon.models.httplib import PerformanceEntry
+from TestCommon.models.const import STDOUT
+from datetime import date
+
+log = logging.getLogger('adtools')
+log.setLevel(logging.DEBUG)
+log.addHandler(STDOUT)
 
 '''
 ######################################################################
@@ -49,6 +63,9 @@ TODO:
 '''
 
 INPUT_TEXT_TYPES = set(('text', 'password'))
+
+startDate = date(2015, 05, 15)
+endDate = date(2015, 06, 15)
 
 PageInfo = _slots_class(
     'PageInfo', ('currentPage', 'level', 'totalPage', 'totalRecord', 'pageIndex'))
@@ -315,65 +332,81 @@ DATE_TYPE = (u'分日', u'分月', u'汇总')
 performance = []
 
 
+def yield_form_data(form):
+    try:
+        mains = form.dataMain.keys()
+    except ElementNotVisibleException:
+        mains = [None]
+    try:
+        types = form.dateType.keys()
+    except ElementNotVisibleException:
+        types = [None]
+    for dataMain in mains:
+        for dateType in types:
+            yield dateType, dataMain
+
+
+def yield_order_data(table):
+    for order in table.order.keys():
+        for value in [u'降序', u'升序']:
+            yield order, value
+
+
+def get_pageArea(driver):
+    return PageArea(**driver.execute_script('return pageArea.getData()'))
+
+
 def test_adTools(driver):
     driver.refresh()
     page = AdTools(driver)
 
-    def do_record(o):
-        pa = PageArea(
-            **driver.execute_script('return pageArea.getData()'))
-        record = entries.setdefault(level, {}).setdefault(
-            dateType, {})
+    def do_order(table, order, value):
+        log.debug('[Generate Report] %s %s %s %s %s %s',
+                  level, dateType, dataMain, order, value, get_pageArea(driver).currentPage)
+        # 排序对比一次
+        table.set_order(order, value)
+        yield
+        pa = get_pageArea(driver)
+        record = entries.setdefault(level, {}).setdefault(dateType, {})
         record['total'] = pa.totalRecord
         record.setdefault(order, {}).setdefault(
-            o, []).append((pa.currentPage, time_delta(driver, 'report')))
+            value, []).append((pa.currentPage, time_delta(driver, 'report')))
 
-        print level, dateType, order, o, pa.totalRecord, record[order][o][-1][-1].processingTime
+        print level, dateType, order, value, pa.totalRecord, record[order][value][-1][-1].processingTime
 
         index = pa.random_turn()
-        print level, dateType, order, o, index
+        print level, dateType, order, value, index
         if index is None:
-            record[order][o].append(
+            record[order][value].append(
                 (0, PerformanceEntry(responseStart=0, requestStart=0)))
             return
 
+        log.debug('[Generate Report] %s %s %s %s %s %s',
+                  level, dateType, dataMain, order, value, get_pageArea(driver).currentPage)
+        # 翻页对比一次
         table.set_number(index)
-        record[order][o].append((index, time_delta(driver, 'report')))
-
-        pa_after = PageArea(
-            **driver.execute_script('return pageArea.getData()'))
+        yield
+        record[order][value].append((index, time_delta(driver, 'report')))
+        pa_after = get_pageArea(driver)
         assert pa_after.totalRecord == pa.totalRecord
         assert pa_after.totalPage == pa.totalPage
 
     form = page.body.form
-    form.set_date('2015-06-25', '2015-08-05')
+    form.set_date(startDate, endDate)
 
-    for level, dateType in ((u'关键词报告', u'汇总'), (u'创意报告', u'分日')):
-        clear_performance_timing(driver)
-        form.set_data(level, dateType)
-        form.submit()
-        table = page.body.table
-        for order in table.order.keys():
-            table.order[order] = u'降序'
-            do_record(u'降序')
-
-            table.order[order] = u'升序'
-            do_record(u'升序')
-
-    return
-    for level in REPORT_LEVEL:
-        date_list = form.dateType.keys()
-        for dateType in (x for x in DATE_TYPE if x in date_list):
+    for level in form.level.keys():
+        for dateType, dataMain in yield_form_data(form):
             clear_performance_timing(driver)
-            form.set_data(level, dateType)
-            form.submit()
+            log.debug('[Generate Report] %s %s %s', level, dateType, dataMain)
+            # 不排序对比一次
+            form(
+                level=level, dateType=dateType,
+                dataMain=dataMain, submit=True)
+            yield
             table = page.body.table
-            for order in table.order.keys():
-                table.order[order] = u'降序'
-                do_record(u'降序')
-
-                table.order[order] = u'升序'
-                do_record(u'升序')
+            for order, value in yield_order_data(table):
+                for i in do_order(table, order, value):
+                    yield
 
 
 def format(d):

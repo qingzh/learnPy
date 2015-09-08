@@ -28,6 +28,8 @@ class AttributeDict(dict):
         for key, value in self.iteritems():
             # Nested AttributeDict object
             # new object should be instance of self.__class__
+            # compatible with `property`
+            if isinstance(getattr(self.__class__, key), property)
             AttributeDict.__setitem__(self, key, value)
 
     @property
