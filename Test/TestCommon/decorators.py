@@ -53,17 +53,11 @@ def mount(obj):
     '''
     def decorator(func):
         obj.__dict__[func.__name__] = func
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        return wrapper
+        return func
     return decorator
 
-results = ThreadLocal.get_results()
 
-
+"""
 def suite(labels):
     if not isinstance(labels, collections.MutableSequence):
         labels = [labels]
@@ -78,3 +72,19 @@ def suite(labels):
             suites[label].add(wrapper)
         return wrapper
     return decorator
+"""
+
+
+class suite(object):
+
+    def __init__(self, labels):
+        if not isinstance(labels, collections.MutableSequence):
+            labels = [labels]
+        self.labels = labels
+
+    def __call__(self, func):
+        suites = ThreadLocal.get_suites()
+        suites['ALL'].add(func)
+        for label in self.labels:
+            suites[label].add(func)
+        return func
