@@ -7,7 +7,7 @@ __author__ = 'Qing Zhang'
 
 from APITest.models.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
-from APITest.compat import formatter
+from APITest.compat import formatter, mount
 from APITest.models.keyword import *
 from APITest.settings import SERVER, USERS, api, LOG_DIR
 from APITest import settings
@@ -102,17 +102,6 @@ def _compare_dict(a, b):
             continue
         assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
             key, value, b[key])
-
-
-def mount(obj):
-    def decorator(func):
-        obj.__dict__[func.__name__] = func
-
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        return wrapper
-    return decorator
 #---------------------------------------------------------------
 #  添加操作
 #  正常添加

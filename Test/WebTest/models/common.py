@@ -15,10 +15,9 @@ TODO:
  如何利用这个进行优化？
 
 """
-
 from ..utils import *
 from ..compat import (
-    By, WebElement, WebDriver, NoSuchElementException, ElementNotVisibleException, OrderedDict)
+    By, WebElement, WebDriver, NoSuchElementException, ElementNotVisibleException)
 from APITest.models.models import _slots_class
 import logging
 
@@ -27,7 +26,7 @@ log = logging.getLogger(__name__)
 __all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
            'DictElement', 'BasePage', 'ContainerElement', 'BaseContainer',
            'ListContainer', 'DictContainer', 'PageInfo', 'StatusElement',
-           'LoginPage']
+           'LoginPage', 'BaseTableContainer']
 
 
 PageInfo = _slots_class(
@@ -85,6 +84,8 @@ class InputElement(BaseElement):
 
     def __set__(self, obj, value):
         # __get__ 的时候碰到异常
+        if not isinstance(value, (basestring, bool)):
+            value = str(value)
         item = super(InputElement, self).__get__(obj)
         element = _find_input(item) or item
         if element is None:
@@ -398,6 +399,11 @@ class ParentProperty(object):
 
 class BasePage(object):
 
+    '''
+    __slots__ 用来记住可以复制的 属性，以及 赋值顺序
+    但是，单击呢…… 单击呢
+    '''
+
     def __init__(self, parent, by=None, locator=None):
         self._parent = parent
         self.by = by
@@ -427,6 +433,24 @@ class BasePage(object):
             return root.find_element_by_xpath('//html').text
         # isinstance(root, WebElement):
         return root.text
+
+    @property
+    def page_source(self):
+        root = self.root
+        if isinstance(root, WebDriver):
+            return root.page_source
+        # isinstance(root, WebElement):
+        return root.parent.execute_script('return arguments[0].innerHTML', root)
+
+    def __call__(self, **kwargs):
+        '''
+        怎么记住 kwargs 的顺序呢
+        '''
+        for key in getattr(self, '_ordered_key', []):
+            if key in kwargs:
+                setattr(self, key, kwargs.pop(key))
+        for key, value in kwargs.iteritems():
+            setattr(self, key, value)
 
 
 class BaseContainer(BasePage):
@@ -615,6 +639,32 @@ class DictContainer(BaseContainer, DictMixin):
             element = self[key]
             if element.is_selected():
                 yield key
+
+import lxml.html
+
+
+class BaseTableContainer(BaseContainer):
+
+    thead = None
+    tbody = None
+
+    def _get_index_by_title(self, title):
+        root = lxml.html.fromstring(self.thead.page_source)
+        for idx, element in enumerate(root.xpath('//th')):
+            if element.text_content().strip() == title:
+                return idx + 1
+        raise Exception('Title not Found!')
+
+    def column(self, title=None, index=None):
+        '''
+        获取第N列的内容
+        '''
+        if title:
+            idx = self._get_index_by_title(title)
+        elif index:
+            idx = index
+        root = lxml.html.fromstring(self.tbody.page_source)
+        return (e.text_content() for e in root.xpath('//tr/td[%d]' % (idx + 1)))
 
 ##########################################################################
 #   其他

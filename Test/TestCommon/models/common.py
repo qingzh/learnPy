@@ -6,8 +6,11 @@ from ..utils import len_unicode, is_sequence
 from .const import *
 from ..exceptions import ReadOnlyAttributeError
 
-__all__ = ['AttributeDict', 'TestResult', 'APIAttributeDict',
-           'ReadOnlyObject', 'PersistentAttributeObject']
+__all__ = [
+    'AttributeDict', 'APIAttributeDict',
+    'ReadOnlyObject', 'PersistentAttributeObject',
+    'TestResult',
+]
 
 log = logging.getLogger(__name__)
 
@@ -25,11 +28,11 @@ class AttributeDict(dict):
         take care of nested dict
         """
         super(AttributeDict, self).__init__(*args, **kwargs)
-        for key, value in self.iteritems():
+        for key in self.keys():
             # Nested AttributeDict object
             # new object should be instance of self.__class__
             # compatible with `property`
-            if isinstance(getattr(self.__class__, key), property)
+            value = self[key]
             AttributeDict.__setitem__(self, key, value)
 
     @property

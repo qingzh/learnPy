@@ -1,12 +1,14 @@
 #! -*- coding:utf8 -*-
 
 from .models.common import TestResult
-from .models.const import STATUS
+from .models.const import API_STATUS
 from .exceptions import UndefinedException
 from time import clock
-from functools import wraps
+from functools import update_wrapper
 from . import ThreadLocal
 from .utils import is_sequence
+
+__all__ = ['formatter', 'mount', 'suite']
 
 
 def secondsToStr(t):
@@ -19,22 +21,21 @@ NameFormat = '{}.{}'
 
 
 def formatter(func):
-    @wraps(func)
     def wrapper(*args, **kwargs):
         tr = TestResult(description=func.func_doc)
         begin = clock()
         try:
             func(*args, **kwargs)
-            tr.status = STATUS.SUCCESS
-            tr.message = STATUS.SUCCESS
+            tr.status = API_STATUS.SUCCESS
+            tr.message = API_STATUS.SUCCESS
         except AssertionError as e:
-            tr.status = STATUS.FAILED
+            tr.status = API_STATUS.FAILED
             tr.message = e.message
         except UndefinedException as e:
             tr.status = None
             tr.message = e.message
         except Exception as e:
-            tr.status = STATUS.EXCEPTION
+            tr.status = API_STATUS.EXCEPTION
             if e.message:
                 tr.message = ErrorFormat.format(type(e).__name__, e.message)
             else:
@@ -44,7 +45,7 @@ def formatter(func):
         tr.runtime = clock() - begin
         ThreadLocal.get_results().append(tr)
         return tr
-    return wrapper
+    return update_wrapper(wrapper, func)
 
 
 def mount(obj):

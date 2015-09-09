@@ -2,6 +2,20 @@ from ..compat import AttributeDict, BLANK
 import json
 
 
+LEVEL_MAP = {
+    'user': 1,
+    'plan': 2,
+    'unit': 3,
+    'winfo': 4,
+    'idea': 5,
+    'app': 6,
+    'phone': 7,
+    'xiJin': 8,
+    'ideaPro': 9,
+    'ideaProPic': 10,
+    'ideaProApp': 11}
+
+
 class AttributeDictWithProperty(AttributeDict):
 
     def __init__(self, *args, **kwargs):
@@ -9,12 +23,13 @@ class AttributeDictWithProperty(AttributeDict):
         take care of nested dict
         """
         super(AttributeDict, self).__init__(*args, **kwargs)
-        for key, value in self.iteritems():
+        for key in self.keys():
             # Nested AttributeDict object
             # new object should be instance of self.__class__
 
             # compatible with `property`
-            if isinstance(getattr(self.__class__, key), property):
+            value = self[key]
+            if isinstance(getattr(self.__class__, key, None), property):
                 getattr(self.__class__, key).__set__(self, value)
             else:
                 AttributeDictWithProperty.__setitem__(self, key, value)
@@ -24,6 +39,61 @@ class AttributeDictWithProperty(AttributeDict):
             # clear item
             return self.pop(key, BLANK)
         super(AttributeDictWithProperty, self).__setitem__(key, value)
+
+
+class GenReport(AttributeDictWithProperty):
+
+    '''
+    JAVA:
+    (long userId, ReportMergeType mergeType, Date startDate,
+      Date endDate, Integer firstResult, Integer recordPerPage, ReportInfo rptInfo,
+      AccountLevel level, AccountEntity userEntity, String orderName, Boolean orderValue)
+    '''
+
+    def __init__(self, level=BLANK, startDate=BLANK, endDate=BLANK, reportType=BLANK, recordPerPage=20, reqPageIndex=1, orderName=BLANK, orderValue=BLANK):
+        super(GenReport, self).__init__(
+            level=level,
+            startDate=startDate,
+            endDate=endDate,
+            reportType=reportType,
+            recordPerPage=recordPerPage,
+            reqPageIndex=reqPageIndex,
+            orderName=orderName,
+            orderValue=orderValue),
+
+    @property
+    def level(self):
+        return self['level']
+
+    @level.setter
+    def level(self, value):
+        try:
+            self.level = int(value)
+        except ValueError:
+            self.level = LEVEL_MAP.get(value)
+
+    def set_order(self, orderName, orderValue):
+        self.orderName = orderName
+        self.orderValue = orderValue
+
+    def date_wraps(key):
+        def fget(self):
+            return self[key]
+
+        def fset(self, value):
+            if value == BLANK:
+                return self.pop(key, BLANK)
+            if not isinstance(value, basestring):
+                value = str(value)
+            self.__setitem__(key, value)
+        return fget, fset
+
+    @property
+    def uri(self):
+        return '/cpc/report/reportAction/genReport.json'
+
+    startDate = property(*date_wraps('startDate'))
+    endDate = property(*date_wraps('endDate'))
 
 
 class CPCData(AttributeDictWithProperty):

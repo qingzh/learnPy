@@ -30,6 +30,9 @@ CREATIVE_FILE = u'e:/doc/批量导入/tools_creative.xlsx'
   "extension": "tools_creative.xlsx"
 }
 '''
+WINFO_23W_FILE = u'e:/doc/批量导入/winfo_23w_blank.xlsx'
+'''
+'''
 #
 #######################################################################
 

@@ -5,12 +5,18 @@ import string
 import collections
 import urlparse
 
+__all__ = [
+    '_compare_dict', 'prepare_url', 'is_sequence', 'len_unicode',
+    'gen_chinese_unicode', 'gen_random_ascii', 'gen_files']
+
+
 def _compare_dict(a, b):
     for key, value in a.iteritems():
         if value is None:
             continue
         assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
             key, value, b[key])
+
 
 def prepare_url(server):
     '''

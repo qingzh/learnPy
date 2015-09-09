@@ -1,9 +1,10 @@
 #! -*- coding:utf8 -*-
 
 from .common import *
-from ..compat import By, WebElement, AttributeDict
-from ..utils import kwargs_dec
+from ..compat import By, AttributeDict, is_sequence
 import json
+from functools import partial
+from collections import Mapping
 
 
 class Where(AttributeDict):
@@ -33,9 +34,6 @@ class HeaderContainer(BaseContainer):
         DictContainer, subxpath='./li/a', subobj=InputElement)
 
 
-# 选择日期
-
-
 class DateContainer(BaseContainer):
 
     '''
@@ -47,19 +45,33 @@ class DateContainer(BaseContainer):
 
     header = ContainerElement(
         By.XPATH, './/div[@class="fast-link"]', DictContainer)
-    start_date = InputElement(By.CSS_SELECTOR, 'div.fn-date-left input')
-    end_date = InputElement(By.CSS_SELECTOR, 'div.fn-date-right input')
+    startDate = InputElement(By.CSS_SELECTOR, 'div.fn-date-left input')
+    endDate = InputElement(By.CSS_SELECTOR, 'div.fn-date-right input')
     confirm = InputElement(By.CSS_SELECTOR, 'a.confirm-btn')
     cancel = InputElement(By.CSS_SELECTOR, 'a.close-btn')
 
     def set_date(self, start, end):
-        self.start_date = start
-        self.end_date = end
+        self.startDate = start
+        self.endDate = end
         self.confirm = True
 
     def set_header(self, value):
         self.header = value
         self.confirm = True
+
+    def __set__(self, obj, value):
+        '''
+        可以直接调用，比如:
+        page.date = (date(2015,5,1), date(2015,6,1))
+        '''
+        self.parent = obj
+        if is_sequence(value):
+            self.set_date(*value)
+        if isinstance(value, Mapping):
+            self.set_date(**value)
+        if isinstance(value, basestring):
+            self.set_header(value)
+
 
 date_container = DateContainer(
     None, By.XPATH, '../div[@class="fn-date-container left"]')
@@ -70,20 +82,22 @@ class TRContainer(BaseContainer):
     tr = ListElement(By.XPATH, './td', BaseElement)
 
 
-class TableContainer(BaseContainer):
+class TableContainer(BaseTableContainer):
+
     title = ContainerElement(
         By.CSS_SELECTOR, 'div.table_head', BaseContainer)
 
     # 排序
     order = ContainerElement(
         By.XPATH, './/table',
-        DictContainer(None, By.XPATH, './thead/tr', subxpath='.//span[contains(@class, "order")]',
-                      subobj=kwargs_dec(
-                          StatusElement,
-                          key=lambda x: x.get_attribute(
-                              'class').rpartition(' ')[-1],
-                          key_map={u'升序': 'order-up', u'降序': 'order-down'}),
-                      key=lambda x: x.find_element(By.XPATH, '..').text.strip()))
+        DictContainer(
+            None, By.XPATH, './thead/tr',
+            subxpath='.//span[contains(@class, "order")]',
+            subobj=partial(
+                StatusElement,
+                key=lambda x: x.get_attribute('class').rpartition(' ')[-1],
+                key_map={u'升序': 'order-up', u'降序': 'order-down'}),
+            key=lambda x: x.find_element(By.XPATH, '..').text.strip()))
 
     thead = ContainerElement(
         By.XPATH, './/table/thead/tr', ListContainer, subxpath='./td', subobj=BaseElement)
@@ -106,6 +120,8 @@ class TableContainer(BaseContainer):
 
 
 class FormContainer(BaseContainer):
+    _ordered_key = ('date', 'level', 'dateType', 'dataMain', 'confirm')
+
     date = ContainerElement(
         By.CSS_SELECTOR, 'div.fn-dates-picker div.input-append', date_container)
     level = ContainerElement(
@@ -123,34 +139,10 @@ class FormContainer(BaseContainer):
     confirm = InputElement(By.CSS_SELECTOR, 'div.fn-clear a.sub_btn')
 
     def set_date(self, start, end):
-        if not isinstance(start, basestring):
-            start = str(start)
-        if not isinstance(end, basestring):
-            end = str(end)
         self.date.set_date(start, end)
-
-    def set_data(self, level=None, dateType=None, dataMain=None):
-        if level:
-            self.level = level
-        if dateType:
-            self.dateType = dateType
-        if dataMain:
-            self.dataMain = dataMain
 
     def submit(self):
         self.confirm = True
-
-    def __call__(self, date=None, level=None, dateType=None, dataMain=None, submit=None):
-        if date:
-            self.set_date(*date)
-        if level:
-            self.level = level
-        if dateType:
-            self.dateType = dateType
-        if dataMain:
-            self.dataMain = dataMain
-        if submit:
-            self.confirm = submit
 
 
 class ReportContainer(BaseContainer):

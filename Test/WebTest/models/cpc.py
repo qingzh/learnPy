@@ -2,7 +2,6 @@
 
 from .common import *
 from ..compat import By, WebElement
-from ..utils import kwargs_dec
 import collections
 
 '''

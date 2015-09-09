@@ -6,6 +6,8 @@ store `const` in common
 import logging
 import sys
 
+__all__ = ('STDOUT', 'BLANK', 'API_STATUS', 'WIDTH')
+
 STDOUT = logging.StreamHandler(sys.stdout)
 
 
@@ -41,18 +43,24 @@ class ConstObject(object):
 
 
 class BLANK(ConstObject):
+
+    '''
+    改变字典的值，有3个概念：
+    1. 不改变，意即不对该键值做任何改动
+    2. 删除，意即 BLANK 的含义
+    3. 为空，意即 None
+    '''
     pass
 
 
-class STATUS(ConstObject):
+class API_STATUS(ConstObject):
+
+    '''
+    这是 API 传回的 STATUS 枚举表
+    '''
     SUCCESS = 'PASS'
     FAILED = 'FAIL'
     EXCEPTION = 'ERROR'
-
-
-class SUITE(ConstObject):
-    __metaclass__ = ConstType
-    API = 0
 
 
 class WIDTH(ConstObject):

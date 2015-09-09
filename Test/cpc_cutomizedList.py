@@ -71,7 +71,22 @@ orderName = {
     'clickNum': u'点击次数',  # 后端返回 'click_num'
     'showNum': u'展现次数',
 }
+orderName_map = {
+    'acp': 'cpc',
+    'clickRatio': 'clickRatio',
+    'consume': 'consume',
+    'clickNum': 'clickNum',  # 后端返回 'click_num'
+    'showNum': 'showNum',
 
+}
+orderName_sortField = {
+    'acp': 'acp',
+    'clickRatio': 'clickRatio',
+    'consume': 'consumed',
+    'clickNum': 'click_num',  # 后端返回 'click_num'
+    'showNum': 'show_num',
+
+}
 # 后端返回的字段
 sortField = {
     'acp': u'平均点击价格',
@@ -81,8 +96,8 @@ sortField = {
     'show_num': u'展现次数',
 }
 orderValue = {
-    True: u'升序',
-    False: u'降序',
+    'true': u'升序',
+    'false': u'降序',
 }
 
 """
@@ -205,8 +220,8 @@ level_map_reversed = {
     7: 'phone',
     8: 'xiJin',
     9: 'ideaPro',
-    10: 'ideaProPic',
-    11: 'ideaProApp'}
+    10: 'ideaPro',
+    11: 'ideaPro'}
 
 
 def _assert_response(res, context):
@@ -300,7 +315,11 @@ class Context(AttributeDict):
             level = int(level)
             self.level = level
         except ValueError:
-            self.level = level_map.get(level.lower())
+            self.level = level_map.get(level)
+        if self.level > 9:
+            self.bizParam['styletype'] = self.level - 10
+        else:
+            self.bizParam.pop('styletype', None)
 
     def set_uid(self, uid):
         self.uid = uid
@@ -433,52 +452,121 @@ def compare_between_servers(a, b):
     return a, b
 
 
-def test(uid, s):
+import warnings
+
+
+def test_customizeList(uid, level, s):
     context = Context(uid=uid)
     context.set_date(startDate, endDate)
-    context.set_level('plan')
+    context.set_level(level)
     context.recordPerPage = 500
     # 不排序
-    # yield s.post(context)
+    yield s.post(context)
     for order in orderName.keys():
+        # if order in {'clickRatio', 'acp'}:
+        #    continue
         for value in orderValue.keys():
+            '''
+            False: 降序; True: 升序
+            '''
             context.set_order(order, value)
-            yield s.post(context)
+            res = s.post(context)
+            assert 200 == res.status_code, 'Status: %s\nUrl: %s\nBody: %s\n%s\n' % (
+                res.status_code, res.request.url, urlparse.parse_qs(res.request.body), res.text)
+            # 从返回结果里提取 排序列
+            ordered = []
+            for target in res.json(object_hook=AttributeDict).data.target:
+                ordered.append(target[orderName_map[order]])
+            if ordered != sorted(ordered, reverse=(value == 'false')):
+                warnings.warn(
+                    'Order by `%s-%s`, server: %s\nGot: %s\n' % (order, value, s.server, ordered))
+            yield res
+
+
+def is_str(s):
+    if type(s) is unicode:
+        return s.encode('utf8')
+    return s
 
 
 def _compare_dict(a, b):
     for key, value in a.iteritems():
         if value is None or key not in b:
             continue
-        assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
-            key, a, b)
+        b_value = b[key]
+        # if key == 'sortField':
+        #     b_value = orderName_sortField[b[key]]
+        if value != b_value:
+            log.warn('Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
+                is_str(key), is_str(value), is_str(b_value)))
     return True
 
 import urlparse
 
 
-def compare(uid, s_list):
+def compare(test_func, uid, level, s_list):
     g_list = []
     for s in s_list:
-        g_list.append(test(uid, s))
+        g_list.append(test_func(uid, level, s))
 
     g_base = g_list.pop()
     while True:
         r_base = next(g_base, None)
         if r_base is None:
             break
-        d_base = r_base.json(object_hook=AttributeDict)
+        try:
+            d_base = r_base.json(object_hook=AttributeDict)
+        except Exception as e:
+            log.debug('Url: %s\nBody: %s\nResponse: %s' %
+                      (r_base.request.url, r_base.request.body, r_base.content))
+            raise e
         for g in g_list:
             r = next(g)
             assert r.request.body == r_base.request.body, '%s != %s' % (
                 r.request.body, r_base.request.body)
-            print urlparse.parse_qs(r.request.body)
+            log.debug(urlparse.parse_qs(r.request.body))
             d = r.json(object_hook=AttributeDict)
             assert d.status == d_base.status, '%s != %s' % (
                 d.status, d_base.status)
             _compare_dict(d_base.data.queryCondition, d.data.queryCondition)
             all(_compare_dict(x, y)
                 for x, y in izip(d_base.data.target, d.data.target))
+
+from st import GenReport
+
+
+def set_order(self, orderName, orderValue):
+    self.orderName = orderName
+    self.orderValue = orderValue
+
+GenReport.set_order = set_order
+
+
+def test_genReport(uid, level, s):
+    gr = GenReport(
+        level=level, startDate=startDate, endDate=endDate, recordPerPage=500)
+    gr.reportType = 'DailyReport'
+    get_response = lambda: s.session.post(
+        s.server + gr.uri, params=dict(uid=uid), data=gr)
+
+    for order in orderName.keys():
+        for value in orderValue.keys():
+            '''
+            False: 降序; True: 升序
+            '''
+            gr.set_order(order, value)
+            res = get_response()
+            assert 200 == res.status_code and res.json()['status'] == 'success', 'Status: %s\nUrl: %s\nBody: %s\n%s\n' % (
+                res.status_code, res.request.url, res.request.body, res.content)
+            # 从返回结果里提取 排序列
+            print res.json(object_hook=AttributeDict).keys()
+            ordered = []
+            for target in res.json(object_hook=AttributeDict).data.reportInfo.statInfos:
+                ordered.append(target[orderName_map[order]])
+            if ordered != sorted(ordered, reverse=(value == 'false')):
+                warnings.warn(
+                    'Order by `%s-%s`, server: %s\nGot: %s\n' % (order, value, s.server, ordered))
+            yield res
 
 
 def post(self, context, assertion=None):

@@ -1,41 +1,140 @@
 #! -*- coding:utf8 -*-
 
 # 希望这里的WebElement是修改以后的
-from .compat import By, WebElement
-import random
-import string
-from TestCommon.utils import gen_chinese_unicode, gen_random_ascii
 
-__all__ = ['_find_input', '_set_input', 'len_unicode', 'kwargs_dec',
-           '_find_and_set_input', 'gen_random_ascii', 'gen_chinese_unicode']
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.support.ui import WebDriverWait
+import logging
+import random
+from TestCommon.utils import (
+    gen_chinese_unicode, gen_random_ascii, len_unicode, prepare_url)
+from functools import update_wrapper
+
+__all__ = ['_find_input', '_set_input', '_find_and_set_input',
+           'len_unicode', 'gen_random_ascii', 'gen_chinese_unicode',
+           'WebElement', 'WebDriver']
+
+######################################################################
+#  不要交叉 import
+#  decorate `WebElement.find_elements`
+
+# TODO
+# driver.find_element 也要检查是否加载完成
+# 但是 WebElement.find_element 则不需要
+
+# 线上环境最长等待时间：120 seconds
+
+
+'''
+
+from selenium.webdriver.remote.webdriver import WebDriver
+WebDriver.abc = 'haha'
+
+__all__ = ['WebDriver']
+
+----
+
+即使只引入 WebDriver, 意即: import WebDriver
+之后再引入 selenium, 意即：import selenium
+此时：
+selenium.webdriver.remote.webdriver.WebDriver 也会是新的WebDriver
+
+因为 selenium.webdriver.remote.webdriver.WebDriver 和 webdriver 对象地址一样
+* 我们只修改了对象属性，并没有修改对象本身 *
+
+'''
+
+
+log = logging.getLogger(__name__)
+
+MAX_WAIT_TIME = 180
+
+
+def load_complete_dec(func):
+    '''
+    等待页面加载完毕
+    '''
+
+    def wrapper(self, *args, **kwargs):
+        ret = func(self, *args, **kwargs)
+        try:
+            driver = self.parent if isinstance(self, WebElement) else self
+            el = driver.find_element_by_xpath('//body/div[@id="windownbg"]')
+            WebDriverWait(el, MAX_WAIT_TIME).until_not(
+                lambda x: 'block' in x.get_attribute('style'))
+        except Exception as e:
+            # 找不到 windownbg
+            # 加载超时
+            log.warn('[WARN] Loading page encounter: \n%s', e)
+        return ret
+    return update_wrapper(wrapper, func)
+
+_click = WebElement.click
+WebElement.click = load_complete_dec(_click)
+
+
+def driver_get_dec(func):
+    def wrapper(self, url):
+        func(self, prepare_url(url))
+    return update_wrapper(wrapper, func)
+
+_default_refresh = WebDriver.refresh
+WebDriver.refresh = load_complete_dec(_default_refresh)
+
+_default_get = WebDriver.get
+WebDriver.get = load_complete_dec(driver_get_dec(_default_get))
+
+
+def displayed_dec(func):
+    def wrapper(self, by, value, visible=True):
+        items = func(self, by, value)
+        if visible is False:
+            return items
+        return filter(lambda x: x.is_displayed() and x.size[
+            'height'] * x.size['width'], items)
+    return update_wrapper(wrapper, func)
+
+
+def index_displayed(func):
+    '''
+    @return (index, WebElement)
+    '''
+
+    def wrapper(self, by, value, visible=True):
+        items = func(self, by, value)
+        if visible is False:
+            return list(enumerate(items))
+        '''
+        为什么需要显示 size > 0??
+        x.is_displayed() and x.size['height'] * x.size['width']
+        '''
+        return filter(
+            lambda (idx, x): x.is_displayed(), enumerate(items))
+    return update_wrapper(wrapper, func)
+
+'''
+借鉴requests的做法，封装所有需要的库
+'''
+_find_elements = WebElement.find_elements
+WebElement.find_elements_with_index = index_displayed(_find_elements)
+WebElement.find_elements = displayed_dec(_find_elements)
+
+######################################################################
 
 INPUT_TEXT_TYPES = set(('text', 'password'))
 
+# 选择日期
 
-def kwargs_dec(func, **dec_kwargs):
-    def wrapper(*args, **kwargs):
-        kwargs.update(dec_kwargs)
-        return func(*args, **kwargs)
-    return wrapper
-
-
-def len_unicode(s, encoding='utf8'):
-    '''
-    unicode lenght in python is 3-bytes
-    convert it into 2-bytes
-
-    >>> len(u'哈哈')
-    6
-    >>> len_unicode(u'哈哈')
-    4
-    >>> len(u'哈哈a')
-    7
-    >>> len_unicode(u'哈哈a')
-    5
-    '''
-    if isinstance(s, str):
-        return (len(s) + len(s.decode(encoding))) / 2
-    return (len(s.encode(encoding)) + len(s)) / 2
+'''
+# 不需要，只需要在 InputElement 里，把 value 转换成 字符串 or 布尔
+def set_date_wraps(cls):
+    def __date_set__(self, obj, value):
+        if not isinstance(value, basestring):
+            value = str(value)
+        super(cls, obj).__set__(obj, value)
+    return __date_set__
+'''
 
 
 def _find_input(element):
@@ -47,7 +146,7 @@ def _find_input(element):
         raise TypeError('Expected WebElement!')
     if element.tag_name == 'input':
         return element
-    _inputs = element.find_elements(By.XPATH, './/input[not(@readonly)]')
+    _inputs = element.find_elements_by_xpath('.//input[not(@readonly)]')
     if not _inputs:
         return None
     if len(_inputs) == 1:
