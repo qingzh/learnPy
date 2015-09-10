@@ -1,3 +1,6 @@
+#! -*- coding:utf8 -*-
+
+
 from ..compat import AttributeDict, BLANK
 import json
 
@@ -17,6 +20,12 @@ LEVEL_MAP = {
 
 
 class AttributeDictWithProperty(AttributeDict):
+
+    '''
+    允许设置字典的property
+    property属性通过 __setattribute__ 调用
+    property方法里调用 同样名称的元素 (__item__)
+    '''
 
     def __init__(self, *args, **kwargs):
         """
@@ -67,10 +76,16 @@ class GenReport(AttributeDictWithProperty):
 
     @level.setter
     def level(self, value):
+        '''
+        level 只能是基本类型（即不可能是字典等)
+        所以直接使用 self['level'] 赋值即可
+        '''
+        if value == BLANK:
+            return self.pop('level', BLANK)
         try:
-            self.level = int(value)
+            self['level'] = int(value)
         except ValueError:
-            self.level = LEVEL_MAP.get(value)
+            self['level'] = LEVEL_MAP.get(value)
 
     def set_order(self, orderName, orderValue):
         self.orderName = orderName
@@ -85,7 +100,7 @@ class GenReport(AttributeDictWithProperty):
                 return self.pop(key, BLANK)
             if not isinstance(value, basestring):
                 value = str(value)
-            self.__setitem__(key, value)
+            self[key] = value
         return fget, fset
 
     @property
@@ -94,6 +109,18 @@ class GenReport(AttributeDictWithProperty):
 
     startDate = property(*date_wraps('startDate'))
     endDate = property(*date_wraps('endDate'))
+
+
+class GenReportResponse(AttributeDict):
+    __classhook__ = AttributeDict
+
+    def __init__(self, *args, **kwargs):
+        super(GenReportResponse, self).__init__(
+            status=None,
+            wolongError=None,
+            data=None,
+            extension=None)
+        self.update(*args, **kwargs)
 
 
 class CPCData(AttributeDictWithProperty):

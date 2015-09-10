@@ -3,7 +3,16 @@
 import requests
 from TestCommon.models.httplib import *
 from TestCommon.utils import gen_files
+from TestCommon.models.const import STDOUT
 from requests.utils import unquote
+import logging
+
+#######################################################################
+# logger
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+log.addHandler(STDOUT)
 
 #######################################################################
 #
@@ -32,6 +41,12 @@ CREATIVE_FILE = u'e:/doc/批量导入/tools_creative.xlsx'
 '''
 WINFO_23W_FILE = u'e:/doc/批量导入/winfo_23w_blank.xlsx'
 '''
+{
+  "status": "success",
+  "wolongError": null,
+  "data": "http://42.120.168.65/fs/wuliao/66755/wuliao_66755_ef2fab651bf50cfe4a61c25d56d48121.xlsx",
+  "extension": "winfo_23w_blank.xlsx"
+}
 '''
 #
 #######################################################################
@@ -47,6 +62,7 @@ def upload_file(filename):
     '''
     files = gen_files(filename)
     url = s.server + '/fs/upload?uid=66755&utilType=WuliaoFile'
+    log.debug('Url: %s\nFiles: %s', url, files)
     res = s.session.post(url, files=files)
     assert res.status_code == 200
     return res.json()

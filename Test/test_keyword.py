@@ -370,6 +370,19 @@ def test_updateKeyword_unchange(server, user):
 
 
 @formatter
+def test_updateKeyword_title(server, user):
+    '''
+    关键词：更新关键词标题为40个字节(中文为2字节)，失败，不允许修改
+    '''
+    keyword = GLOBAL[TAG_TYPE]['output']
+    change = dict(keyword=gen_chinese_unicode(40))
+    _updateKeyword_by_dict(
+        server, user, keyword.keywordId, change, change)
+    # recovery
+    updateKeyword(server=server, header=user, body=keyword)
+
+
+@formatter
 def test_updateKeyword_price_2place(server, user):
     '''
     关键词：更新关键词出价修改为2位小数999.59，测试精度
@@ -437,6 +450,7 @@ def test_updateKeyword(server, user):
         header=user, server=server, body={'keywordIds': [GLOBAL[TAG_TYPE]['keywordId']]}).body.keywordTypes[0]
 
     test_updateKeyword_unchange(server, user)
+    test_updateKeyword_title(server, user)
     test_updateKeyword_price_2place(server, user)
     test_updateKeyword_clear_price(server, user)
     test_updateKeyword_clear_destinationUrl(server, user)
@@ -449,9 +463,9 @@ def test_updateKeyword(server, user):
 
 
 @formatter
-def test_deleteSublink(server, user):
+def test_deleteKeyword(server, user):
     '''
-    推广电话：删除操作 deleteSublink
+    TODO: 删除关键词 deleteKeyword
     '''
     res = deleteSublink(
         header=user, server=server, body={'sublinkIds': [GLOBAL['sublink']['sublinkId']], "newCreativeType": TYPE.SUBLINK})

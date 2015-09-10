@@ -4,11 +4,25 @@ from requests import Request, Session
 import logging
 import zipfile
 import tarfile
-import json
 import requests
 from requests.exceptions import MissingSchema
 import collections
 from ..compat import BLANK, AttributeDict, APIAttributeDict, ReadOnlyObject, PersistentAttributeObject
+
+import json
+from functools import partial
+
+
+class JSONEncoder(json.JSONEncoder):
+
+    def default(self, obj):
+        try:
+            return dict(obj)
+        except TypeError:
+            raise TypeError(
+                '%s.%s is NOT dict serializable', obj.__module__, obj.__name__)
+
+requests.models.json_dumps = partial(json.dumps, cls=JSONEncoder)
 
 log = logging.getLogger(__name__)
 
@@ -23,21 +37,6 @@ def sample(x, y):
     {'c': 3, 'd': 4}
     '''
     return dict((i, y[i]) for i in x if i in y)
-
-
-class JSONEncoder(json.JSONEncoder):
-
-    def default(self, obj):
-        if hasattr(obj, 'dict'):
-            return obj.dict()
-        super(JSONEncoder, self).default(obj)
-
-
-def json_dump_decorator(func):
-    def json_dump_wrapper(*args, **kwargs):
-        kwargs['cls'] = JSONEncoder
-        return func(*args, **kwargs)
-    return json_dump_wrapper
 
 
 class ReadOnlyAttributeDict(ReadOnlyObject, APIAttributeDict):
@@ -262,17 +261,13 @@ class APIData(APIDataMixin):
     pass
 
 
-requests.models.json_dumps = json_dump_decorator(json.dumps)
-
-
 def response_hook(obj):
     def response_wrapper(response, *args, **kwargs):
         # 2015年8月5日定论，所有返回码都必须是200,
         # status code 在 hook 里统一验证，不再放到单独的Assertion里
         assert response.status_code == 200, 'Status code must be 200! not "%s"' % response.status_code
         try:
-            response._body = obj(
-                response.json(object_hook=AttributeDict))
+            response._body = obj(response.json())
             response.header = response._body.header
             if 'body' in response._body:
                 response.body = response._body.body
@@ -344,10 +339,10 @@ class APIRequest(Request):
                 res.status_code, res.request.url, res.request.body)
         return res
 
-    def __call__(self, header=None, body=None, json=None, **kwargs):
+    def __call__(self, server=None, header=None, body=None, json=None, **kwargs):
         if header is not None:
             json = APIData(header=header, body=body)
-        return self.response(json=json, **kwargs)
+        return self.response(json=json, server=server, **kwargs)
 
 
 class TestRequest(Request):

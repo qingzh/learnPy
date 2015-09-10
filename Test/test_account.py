@@ -8,10 +8,10 @@ __author__ = 'Qing Zhang'
 from APITest.models.models import (APIData, AttributeDict)
 from TestCommon.models.const import STDOUT, BLANK
 from APITest.models.account import *
-from APITest.settings import USERS, api, LOG_DIR
+from APITest.settings import SERVER, USERS, api, LOG_DIR
 from APITest import settings
 from APITest.utils import assert_header
-from TestCommon.utils import formatter
+from APITest.compat import formatter
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from TestCommon import ThreadLocal
@@ -42,7 +42,6 @@ log.addHandler(output_file)
 
 ##########################################################################
 
-SERVER = settings.SERVER.BETA
 DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 

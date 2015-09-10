@@ -4,11 +4,12 @@ from .models.common import TestResult
 from .models.const import API_STATUS
 from .exceptions import UndefinedException
 from time import clock
-from functools import update_wrapper
+from functools import update_wrapper, partial
 from . import ThreadLocal
 from .utils import is_sequence
 
 __all__ = ['formatter', 'mount', 'suite']
+FORMATTER_SWITCH = True
 
 
 def secondsToStr(t):
@@ -21,6 +22,9 @@ NameFormat = '{}.{}'
 
 
 def formatter(func):
+    if FORMATTER_SWITCH is False:
+        return func
+
     def wrapper(*args, **kwargs):
         tr = TestResult(description=func.func_doc)
         begin = clock()
@@ -48,12 +52,12 @@ def formatter(func):
     return update_wrapper(wrapper, func)
 
 
-def mount(obj):
+def mount(obj, *args, **kwargs):
     '''
     最后回传的是wrapper
     '''
     def decorator(func):
-        obj.__dict__[func.__name__] = func
+        obj.__dict__[func.__name__] = partial(func, *args, **kwargs)
         return func
     return decorator
 
@@ -64,7 +68,7 @@ class suite(object):
         self.labels = is_sequence(labels, convert=True)
 
     def __call__(self, func):
-        suites = ThreadLocal.get_suites()
+        suites = ThreadLocal.suites
         suites['ALL'].add(func)
         for label in self.labels:
             suites[label].add(func)

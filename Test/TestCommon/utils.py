@@ -116,7 +116,8 @@ def gen_random_ascii(length, unicode_encoded=True):
         s = s.decode('utf8')
     return s
 
-import os
+import os.path
+from .models.const import MIME_TYPES
 from requests.utils import quote
 
 
@@ -134,7 +135,7 @@ def gen_files(filename, filetype=None):
     # 这里使用中文会有点问题……
     basename = quote(basename)
     if filetype is None:
-        filetype = 'application/vnd.ms-excel'
+        filetype = MIME_TYPES[os.path.splitext(basename)[1]]
     files = {
         'file': (basename, open(filename, 'rb'), filetype),
         'utilType': (None, 'WuliaoFile'),

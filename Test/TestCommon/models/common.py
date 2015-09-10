@@ -108,6 +108,11 @@ class AttributeDict(dict):
     def copy(self):
         return type(self)(self)
 
+    def update(self, *args, **kwargs):
+        d = dict(*args, **kwargs)
+        for key in d.iterkeys():
+            self.__setitem__(key, d[key])
+
 
 class APIAttributeDict(AttributeDict):
 
@@ -116,12 +121,12 @@ class APIAttributeDict(AttributeDict):
         '''
         get all url paths
         '''
-        path = []
-        for v in self.itervalues():
-            if isinstance(v, AttributeDict):
-                path.extend(v.nodes)
+        path = {}
+        for k, v in self.iteritems():
+            if isinstance(v, APIAttributeDict):
+                path.update(v.nodes)
             else:
-                path.append(v)
+                path[k] = v
         return path
 
 
@@ -140,6 +145,11 @@ class ReadOnlyObject(object):
 
 
 class PersistentAttributeObject(object):
+
+    '''
+    __slots__ 是限制类属性 .__dict__
+    那么，怎么限制 元素 呢？
+    '''
 
     def __setitem__(self, key, value):
         if getattr(self, key, BLANK) is BLANK:

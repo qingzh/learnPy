@@ -5,6 +5,7 @@ from .models import AttributeDict, APIData
 import uuid
 from ..utils import assert_header
 from const import STATUS
+from functools import partial
 
 MAX_BUDGET = 500000 - 10
 
@@ -26,6 +27,8 @@ class UserObject(AttributeDict):
             self.source = source
         # tag: 32 bit
         self.__dict__['tag'] = {}
+        for key, val in api.nodes.iteritems():
+            self.__dict__[key] = partial(val.__call__, header=self)
 
     def get_tag(self, tagType, refresh=False):
         # MAX length = 32
