@@ -561,7 +561,8 @@ def compare2(test_func, uid, level, s_list):
             d = r.json(object_hook=AttributeDict)
             assert d.status == d_base.status, '%s != %s' % (
                 d.status, d_base.status)
-            _compare_dict(d_base.data.queryCondition, d.data.queryCondition)
+            assert d_base.data.queryCondition == d.data.queryCondition, 'Query Contition Differ: \n%s\n%s\n' % (
+                d_base.data.queryCondition, d.data.queryCondition)
             all(_compare_dict(x, y, idx)
                 for idx, (x, y) in enumerate(izip(d_base.data.target, d.data.target)))
 

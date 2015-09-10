@@ -3,9 +3,13 @@
 from .common import AttributeDict
 from APITest.models.models import SlotsDict
 from ..utils import prepare_url, is_sequence
-import requests
 import urlparse
 from lxml import etree
+
+import requests
+from functools import partial
+
+requests.Session.send = partial(requests.Session.send, verify=False)
 
 
 class ServerInfo(AttributeDict):
@@ -64,7 +68,7 @@ class HttpServer(object):
         @param password: password
         @return `RequestsCookieJar`: cookies of login account
         '''
-        r = self.session.get(self.server, verify=False)
+        r = self.session.get(self.server)
         assert r.status_code == 200, 'Failed to get page "%s": %d Error' % (
             self.server, r.status_code)
         page = etree.HTML(r.content)
