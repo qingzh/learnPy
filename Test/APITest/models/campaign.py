@@ -2,7 +2,7 @@
 
 import json
 from .map import yield_province_city
-from .models import BaseData
+from .models import AttributeDict
 from ..utils import yield_infinite
 from datetime import datetime
 

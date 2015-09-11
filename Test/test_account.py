@@ -22,6 +22,7 @@ import logging
 from TestCommon.utils import gen_chinese_unicode
 import urlparse
 
+
 ##########################################################################
 #    log settings
 

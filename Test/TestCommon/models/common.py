@@ -1,5 +1,7 @@
 #! -*- coding:utf8 -*-
 
+# print '---- common init ----'
+
 import json
 import logging
 from ..utils import len_unicode, is_sequence
@@ -9,7 +11,7 @@ from ..exceptions import ReadOnlyAttributeError
 __all__ = [
     'AttributeDict', 'APIAttributeDict',
     'ReadOnlyObject', 'PersistentAttributeObject',
-    'TestResult',
+    'TestResult', 'SlotsDict'
 ]
 
 log = logging.getLogger(__name__)
@@ -177,6 +179,27 @@ class PersistentAttributeObject(object):
         for key, value in _dict.iteritems():
             if key in self:
                 self.__setitem__(key, value)
+
+
+class SlotsDict(PersistentAttributeObject, AttributeDict):
+    __classhook__ = AttributeDict
+
+    def __init__(self, *args, **kwargs):
+        # TODO: not compatible with nested dict
+        _dict = {}
+        for key in self.__slots__:
+            _dict[key] = getattr(self.__class__, key, None)
+        super(SlotsDict, self).__init__(_dict)
+        super(SlotsDict, self).update(*args, **kwargs)
+
+    def __setitem__(self, key, value):
+        if key not in self.__slots__:
+            raise KeyError(
+                "%s.%s is not exist!" % (self.__class__, key))
+        super(SlotsDict, self).__setitem__(key, value)
+        super(SlotsDict, self).__setattr__(key, value)
+
+    __setattr__ = __setitem__
 
 
 def _pretty_description(s, width=WIDTH.DESCRIPTION, encoding='utf8'):

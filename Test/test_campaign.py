@@ -144,7 +144,7 @@ def doRequest(req, body={}, server=SERVER, user=DEFAULT_USER, recover=False):
     @return requests.Response
     '''
     data = APIData(header=user)
-    data.body = body if isinstance(body, BaseData) else BaseData(**body)
+    data.body = AttributeDict(body)
     res = req.response(server, json=data)
     log.debug(res.request.url)
     log.debug('[REQUEST ] %s' % res.request.body)

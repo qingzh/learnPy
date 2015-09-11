@@ -1,15 +1,13 @@
 #! -*- coding:utf8 -*-
 
-from .common import AttributeDict
-from APITest.models.models import SlotsDict
+from .common import AttributeDict, SlotsDict
 from ..utils import prepare_url, is_sequence
 import urlparse
 from lxml import etree
-
 import requests
-from functools import partial
 
-requests.Session.send = partial(requests.Session.send, verify=False)
+
+__all__ = ['ServerInfo', 'HttpServer', 'PerformanceEntry']
 
 
 class ServerInfo(AttributeDict):

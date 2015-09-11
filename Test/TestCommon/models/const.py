@@ -3,13 +3,17 @@
 '''
 store `const` in common
 '''
+
+# print '---- const init ----'
+
 import logging
 import sys
 
-__all__ = ('STDOUT', 'BLANK', 'API_STATUS', 'WIDTH')
+__all__ = ('STDOUT', 'BLANK', 'API_STATUS', 'WIDTH', 'LOG_LEVEL')
 
 STDOUT = logging.StreamHandler(sys.stdout)
-STDOUT.setLevel(logging.DEBUG)
+LOG_LEVEL = logging.DEBUG
+STDOUT.setLevel(LOG_LEVEL)
 
 
 class ConstType(type):

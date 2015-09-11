@@ -346,6 +346,7 @@ def _updateKeyword_by_dict(server, user, keywordId, change, expected):
         header=user, server=server, body={'keywordIds': [keywordId]})
     # 对比
     _compare_dict(keyword, res_after.body.keywordTypes[0])
+    return res
 
 
 @formatter
@@ -370,14 +371,35 @@ def test_updateKeyword_unchange(server, user):
 
 
 @formatter
+def test_updateKeyword_pause(server, user):
+    '''
+    关键词：更新为暂停状态，不做任何更新
+    '''
+    keyword = GLOBAL[TAG_TYPE]['output']
+    change = dict(
+        adgroupId=123456,
+        keyword=gen_chinese_unicode(60),
+        price=None,
+        destinationUrl=None,
+        matchType=None,
+        pause=None,
+        status=123,
+    )
+    _updateKeyword_by_dict(
+        server, user, keyword.keywordId, change, {})
+    # recovery
+    updateKeyword(server=server, header=user, body=keyword)
+
+
+@formatter
 def test_updateKeyword_title(server, user):
     '''
-    关键词：更新关键词标题为40个字节(中文为2字节)，失败，不允许修改
+    关键词：更新标题为40个字节，返回成功(实际不做修改修改)
     '''
     keyword = GLOBAL[TAG_TYPE]['output']
     change = dict(keyword=gen_chinese_unicode(40))
     _updateKeyword_by_dict(
-        server, user, keyword.keywordId, change, change)
+        server, user, keyword.keywordId, change, {})
     # recovery
     updateKeyword(server=server, header=user, body=keyword)
 

@@ -2,10 +2,9 @@
 
 from threading import local as threading_local
 from collections import defaultdict
-from models.const import WIDTH
-from models.const import API_STATUS
+from .models.const import WIDTH, API_STATUS
 
-
+__all__ = ['ThreadLocal']
 #---------------------------------------------------------------------------
 #  Store results of test suite
 

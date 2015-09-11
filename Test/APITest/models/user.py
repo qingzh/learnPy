@@ -6,6 +6,11 @@ import uuid
 from ..utils import assert_header
 from const import STATUS
 from functools import partial
+import logging
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+
 
 MAX_BUDGET = 500000 - 10
 
@@ -27,8 +32,22 @@ class UserObject(AttributeDict):
             self.source = source
         # tag: 32 bit
         self.__dict__['tag'] = {}
+        '''
+        # 这里可以修改成动态的，修改参见 __getattr__
         for key, val in api.nodes.iteritems():
             self.__dict__[key] = partial(val.__call__, header=self)
+        '''
+
+    def __getattr__(self, key):
+        # api 如果改变了也能同步改变
+        log.debug('__getattr__: %s', key)
+        try:
+            return super(UserObject, self).__getattr__(key)
+        except Exception as e:
+            nodes = api.nodes
+            if key in nodes:
+                return partial(nodes[key].__call__, header=self)
+            raise e
 
     def get_tag(self, tagType, refresh=False):
         # MAX length = 32

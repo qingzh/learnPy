@@ -5,7 +5,7 @@ from .models.const import API_STATUS
 from .exceptions import UndefinedException
 from time import clock
 from functools import update_wrapper, partial
-from . import ThreadLocal
+from .threadlocal import ThreadLocal
 from .utils import is_sequence
 
 __all__ = ['formatter', 'mount', 'suite']

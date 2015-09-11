@@ -7,10 +7,14 @@ import tarfile
 import requests
 from requests.exceptions import MissingSchema
 import collections
-from ..compat import BLANK, AttributeDict, APIAttributeDict, ReadOnlyObject, PersistentAttributeObject
+from ..compat import (SlotsDict,
+                      BLANK, AttributeDict, APIAttributeDict, ReadOnlyObject, PersistentAttributeObject)
 
 import json
 from functools import partial
+
+__all__ = ['JSONEncoder', 'ReadOnlyAttributeDict', 'PersistentAttributeDict', 'SlotsMeta',
+           '_slots_class', 'APIType', 'APIData', 'zipORtar']
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -58,93 +62,11 @@ class SlotsMeta(type):
         return super(SlotsMeta, cls).__new__(cls, name, bases, attrs)
 
 
-class SlotsDict(PersistentAttributeDict):
-    __classhook__ = AttributeDict
-
-    def __init__(self, *args, **kwargs):
-        # TODO: not compatible with nested dict
-        _dict = {}
-        for key in self.__slots__:
-            _dict[key] = getattr(self.__class__, key, None)
-        super(SlotsDict, self).__init__(_dict)
-        super(SlotsDict, self).update(*args, **kwargs)
-
-    def __setitem__(self, key, value):
-        if key not in self.__slots__:
-            raise KeyError(
-                "%s.%s is not exist!" % (self.__class__, key))
-        super(SlotsDict, self).__setitem__(key, value)
-        super(SlotsDict, self).__setattr__(key, value)
-
-    __setattr__ = __setitem__
-
-
 def _slots_class(name, attributes):
     '''
     Solid attributes
     '''
     return SlotsMeta(name, (SlotsDict,), attributes)
-
-
-class BaseData(object):
-    _params_ = None
-    allow_null = True
-
-    def __init__(self, **kwargs):
-        self._params_ = self._params_ or list(kwargs.iterkeys())
-        for key in kwargs:
-            if type(kwargs.get(key)) is dict:
-                setattr(self, key, BaseData(**kwargs.get(key)))
-            else:
-                setattr(self, key, kwargs.get(key))
-
-    def __str__(self):
-        return self.json()
-
-    def json(self, allow_null=None, params=None):
-        return json.dumps(self.dict(allow_null, params))
-
-    def dict(self, allow_null=None, params=None):
-        if allow_null is None:
-            _allow_null = self.allow_null
-        else:
-            _allow_null = allow_null
-        params = params or self._params_ or []
-        params_dict = {}
-        for key in params:
-            if not hasattr(self, key):
-                continue
-            value = getattr(self, key)
-            if value is None and _allow_null is False:
-                continue
-            if isinstance(value, BaseData):
-                params_dict[key] = value.dict(allow_null)
-            else:
-                params_dict[key] = value
-        return params_dict
-
-    def __call__(self, params=None, **kwargs):
-        for key in kwargs:
-            if key in params or hasattr(self, key):
-                setattr(self, key, kwargs.get(key))
-        return self
-
-    def __eq__(self, obj):
-        return (type(self) is type(obj) and
-                self.dict() == obj.dict(params=self._params_))
-
-    def __ne__(self, obj):
-        return not self.__eq__(obj)
-
-
-class RequestHeader(BaseData):
-    _params_ = ['username', 'password', 'token', 'target']
-
-    def __init__(self, username, password, token, target=None):
-        self.username = username
-        self.password = password
-        self.token = token
-        self.target = target
 
 
 class RequestData(SlotsDict):
@@ -177,8 +99,9 @@ class ResponseData(AttributeDict):
         return self.header.status
 
 
-class BulkJobBody(BaseData):
-    _params_ = ['bulkJobRequestType']
+class BulkJobBody(SlotsDict):
+    __slots__ = ['bulkJobRequestType']
+    __classhook__ = AttributeDict
     '''
     campaignIds: long[], default = []
     singleFile: int in (0,1), default = 0
@@ -188,14 +111,14 @@ class BulkJobBody(BaseData):
     '''
 
     def __init__(self, campaignIds=None, singleFile=None, format=None, variableColumns=None, fileController=None):
-        self.bulkJobRequestType = BaseData(
+        self.bulkJobRequestType = SlotsDict(
             campaignIds=campaignIds,
             singleFile=singleFile,
             format=format,
             variableColumns=variableColumns,
             fileController=fileController,
         )
-        self.bulkJobRequestType._params_ = [
+        self.bulkJobRequestType.__slots__ = [
             'campaignIds', 'singleFile',
             'format', 'variableColumns', 'fileController']
 

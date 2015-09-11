@@ -40,6 +40,7 @@ import logging
 from itertools import izip
 from TestCommon.models.httplib import ServerInfo, HttpServer
 from WebTest.models.handshake import GenReport
+from datetime import date
 ##########################################################################
 #   logging settings
 
@@ -86,6 +87,9 @@ orderName_sortField = {
     'consume': 'consumed',
     'clickNum': 'click_num',  # 后端返回 'click_num'
     'showNum': 'show_num',
+    'consumed': 'consume',
+    'click_num': 'clickNum',  # 后端返回 'click_num'
+    'show_num': 'showNum',
 
 }
 # 后端返回的字段
@@ -360,8 +364,8 @@ USERID = 1520
 SERVER = 'https://e.sm.cn'
 '''
 # 日期区间：5月份
-startDate = '2015-05-01'
-endDate = '2015-06-01'
+startDate = date(2015, 7, 15)
+endDate = date(2015, 8, 15)
 
 RE_LEVEL = re.compile(r'(/+)?cpc/+(?P<level>[^/]+)')
 
@@ -534,9 +538,9 @@ def _compare_dict(a, b, idx=None):
         if value is None or key not in b:
             continue
         b_value = b[key]
-        # if key == 'sortField':
-        #     b_value = orderName_sortField[b[key]]
-        if value != b_value:
+        if key == 'sortField':
+            b_value = orderName_sortField[b_value]
+        if value not in set((b[key], b_value)):
             log.warn('Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
                 is_str(key) + (str(idx) if idx else ''), is_str(value), is_str(b_value)))
             return False
@@ -561,8 +565,8 @@ def compare2(test_func, uid, level, s_list):
             d = r.json(object_hook=AttributeDict)
             assert d.status == d_base.status, '%s != %s' % (
                 d.status, d_base.status)
-            assert d_base.data.queryCondition == d.data.queryCondition, 'Query Contition Differ: \n%s\n%s\n' % (
-                d_base.data.queryCondition, d.data.queryCondition)
+            _compare_dict(d_base.data.queryCondition, d.data.queryCondition)
+            #'Query Contition Differ: \n%s\n%s\n' % (d_base.data.queryCondition, d.data.queryCondition)
             all(_compare_dict(x, y, idx)
                 for idx, (x, y) in enumerate(izip(d_base.data.target, d.data.target)))
 
