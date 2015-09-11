@@ -9,32 +9,36 @@
 
 import logging
 import sys
+from time import clock
+from functools import update_wrapper
 
-from time import time
-
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
 
 
 class C(object):
 
     def func(self, n):
-        print 'func', n
+        ''' Original DOC in C.func '''
+        log.debug('%s.%s: %s' % (self.__class__, func.__name__, n))
+        log.debug(func.__doc__)
         return n * 2
 
 
 def dec(func):
     def wrapper(*args, **kwargs):
-        print 'dec'
+        ''' It's a NEW doc '''
+        log.debug(wrapper.__doc__)
         return func(*args, **kwargs)
-    return wrapper
+    return update_wrapper(wrapper, func)
 
 
 def new_dec(func):
     def wrapper(*args, **kwargs):
-        print 'new dec'
+        ''' Another NEW doc '''
+        log.debug(wrapper.__doc__)
         return func(*args, **kwargs) * 5
-    return wrapper
+    return update_wrapper(wrapper, func)
 
 '''
 C.new_func = dec(C.func)
@@ -42,34 +46,27 @@ C.func = new_dec(C.func)
 '''
 
 
-def show_dir(func):
-    for i in dir(func):
-        if not hasattr(func, i):
-            continue
-        attr = getattr(func, i)
-        print '{}.{}: '.format(func.__class__.__name__, i), attr
-    return func
-
-
 class caclculateTime(object):
 
     def __init__(self, is_debug):
-        print 'Start {}'.format(self.__class__.__name__)
-        # show_dir(self)
+        log.info('Start {}'.format(self.__class__.__name__))
         self.is_debug = is_debug
 
     def __call__(self, func):
         def func_wrapper(*args, **kwargs):
+            '''
+            Doc in func_wrapper
+            '''
             if self.is_debug is True:
-                begin = time()
+                begin = clock()
             ret = func(*args, **kwargs)
             if isinstance(ret, list):
                 print 'List: {}'.format(str(ret))
             else:
                 print 'Return value is not a list'
             if self.is_debug is True:
-                logging.info(
-                    '\n Function [{}] finished in {:.10f}s'.format(func.__name__, time() - begin))
+                log.info(
+                    '\n Function [{}] finished in {:.10f}s'.format(func.__name__, clock() - begin))
             return ret
         return func_wrapper
 
@@ -78,13 +75,14 @@ def calculate_time(is_debug):
     def run_func(func):
         def func_wrapper(*args, **kwargs):
             if is_debug:
-                begin = time()
+                begin = clock()
                 func(*args, **kwargs)
-                logging.info(
-                    "\n  Function [{}] finished in {:.10f}s".format(func.__name__, time() - begin))
+                log.info(
+                    "\n  Function [{}] finished in {:<.10f}s".format(func.__name__, clock() - begin))
             else:
                 func(*args, **kwargs)
-        return func_wrapper
+        return update_wrapper(func_wrapper)
+    # also a decorator, no need to `update_wrapper`
     return run_func
 
 
@@ -122,7 +120,6 @@ class TDecorator(object):
         def func_wrapper(*args, **kwargs):
             print args
             print kwargs
-            print url
             func(*args, **kwargs)
         return func_wrapper
 

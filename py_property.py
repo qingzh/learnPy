@@ -1,3 +1,37 @@
+import logging
+from TestCommon.models.const import STDOUT
+
+log = logging.getLogger('st')
+log.setLevel(logging.DEBUG)
+log.addHandler(STDOUT)
+
+#############################################################
+
+class PClass(object):
+
+    def __get__(self, obj, objtype):
+        ''' PClass __get__ '''
+        log.debug('__get__: %s', locals())
+        return self.abc
+
+    def __set__(self, obj, value):
+
+        raise AttributeError('Immutable!')
+
+    def __init__(self, abc="test"):
+        self.abc = abc
+
+    def set(self, value):
+        self.abc = value
+
+    def __getattr__(self, key):
+        self.testattr = 'testattr'
+        if super(PClass, self).__getattribute__(key):
+            return getattr(self, key)
+        else:
+            return 'ERROR to GET'
+
+
 class Test(object):
     PROFILE = None
 
