@@ -2,7 +2,7 @@
 
 
 from TestCommon.models.const import *
-from TestCommon.models.common import AttributeDict
+from TestCommon.models.common import AttributeDict, CustomProperty, AttributeDictWithProperty
 from TestCommon.utils import is_sequence
 from .exceptions import *
 from selenium.webdriver.common.by import By

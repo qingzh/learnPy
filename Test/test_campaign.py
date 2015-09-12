@@ -19,8 +19,6 @@ delete:
 TODO:
   * 测试级联删除  state表
 '''
-__version__ = 1.0
-__author__ = 'Qing Zhang'
 
 import json
 import logging
@@ -29,19 +27,20 @@ from APITest.utils import assert_header
 from TestCommon.models.const import STDOUT, BLANK
 from APITest.models.campaign import *
 import random
-from APITest import settings
 from APITest.settings import SERVER, USERS, api
 from APITest.utils import assert_header
 from itertools import izip
-import threading
 import collections
-import uuid
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from APITest.compat import formatter
 from TestCommon.exceptions import UndefinedException
-from TestCommon import ThreadLocal
 from datetime import datetime
+
+
+__version__ = 1.0
+__author__ = 'Qing Zhang'
+
 ##########################################################################
 #    log settings
 

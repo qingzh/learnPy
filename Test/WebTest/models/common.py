@@ -17,7 +17,8 @@ TODO:
 """
 from ..utils import *
 from ..compat import (
-    By, WebElement, WebDriver, NoSuchElementException, ElementNotVisibleException)
+    CustomProperty, By, WebElement,
+    WebDriver, NoSuchElementException, ElementNotVisibleException)
 from APITest.models.models import _slots_class
 import logging
 
@@ -388,10 +389,10 @@ class AlertElement(InputElement):
 # Container/Page 类
 
 
-class ParentProperty(object):
+class ParentProperty(CustomProperty):
 
-    def __get__(self, obj, objtype):
-        return obj._parent
+    def __init__(self):
+        self._property_key = '_parent'
 
     def __set__(self, obj, value):
         obj.pset(value)

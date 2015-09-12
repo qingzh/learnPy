@@ -7,7 +7,6 @@ from xxx import compat
 因为不管从何处引入，只要不改变 requests 本身，则requests 对象地址不变！
 
 '''
-
 # print '---- compat init ----'
 
 import requests

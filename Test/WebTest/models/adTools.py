@@ -1,4 +1,4 @@
-%run test#! -*- coding:utf8 -*-
+#! -*- coding:utf8 -*-
 
 from .common import *
 from ..compat import By, AttributeDict, is_sequence

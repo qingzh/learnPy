@@ -1,7 +1,7 @@
 #! -*- coding:utf8 -*-
 
 
-from ..compat import AttributeDict, BLANK
+from ..compat import AttributeDict, BLANK, CustomProperty, AttributeDictWithProperty
 import json
 
 
@@ -18,36 +18,24 @@ LEVEL_MAP = {
     'ideaProPic': 10,
     'ideaProApp': 11}
 
+class DateProperty(CustomProperty):
 
-class AttributeDictWithProperty(AttributeDict):
+    def __get__(self, obj, objtype):
+        if obj is None:
+            return self
+        # 如果使用 obj[key] 就会进入死循环
+        # 因为 obj.__setitem__ 对property进行了特殊处理
+        # 应该是使用 dict.__setitem__
+        return dict.__getitem__(obj, self._property_key)
 
-    '''
-    允许设置字典的property
-    property属性通过 __setattribute__ 调用
-    property方法里调用 同样名称的元素 (__item__)
-    '''
-
-    def __init__(self, *args, **kwargs):
-        """
-        take care of nested dict
-        """
-        super(AttributeDict, self).__init__(*args, **kwargs)
-        for key in self.keys():
-            # Nested AttributeDict object
-            # new object should be instance of self.__class__
-
-            # compatible with `property`
-            value = self[key]
-            if isinstance(getattr(self.__class__, key, None), property):
-                getattr(self.__class__, key).__set__(self, value)
-            else:
-                AttributeDictWithProperty.__setitem__(self, key, value)
-
-    def __setitem__(self, key, value):
+    def __set__(self, obj, value):
+        ''' type of obj: AttributeDict '''
+        key = self._property_key
         if value == BLANK:
-            # clear item
-            return self.pop(key, BLANK)
-        super(AttributeDictWithProperty, self).__setitem__(key, value)
+            return obj.pop(key, BLANK)
+        if not isinstance(value, basestring):
+            value = str(value)
+        dict.__setitem__(obj, key, value)
 
 
 class GenReport(AttributeDictWithProperty):

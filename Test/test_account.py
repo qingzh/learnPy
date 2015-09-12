@@ -2,14 +2,11 @@
 '''
 针对 附加创意 (NewCreative) 接口的回归测试:
 '''
-__version__ = 1.0
-__author__ = 'Qing Zhang'
 
-from APITest.models.models import (APIData, AttributeDict)
+from APITest.models.models import APIData
 from TestCommon.models.const import STDOUT, BLANK
 from APITest.models.account import *
 from APITest.settings import SERVER, USERS, api, LOG_DIR
-from APITest import settings
 from APITest.utils import assert_header
 from APITest.compat import formatter
 from APITest.models.user import UserObject
@@ -28,7 +25,6 @@ import urlparse
 
 TAG_TYPE = u'账户'
 TIMESTAMP = datetime.now().strftime('%Y%m%d%H%M%S%f')
-LOG_DIR = r'.'
 LOG_FILENAME = '%s/%s_%s.log' % (LOG_DIR, TAG_TYPE, TIMESTAMP)
 
 __loglevel__ = logging.INFO
