@@ -18,6 +18,7 @@ LEVEL_MAP = {
     'ideaProPic': 10,
     'ideaProApp': 11}
 
+
 class DateProperty(CustomProperty):
 
     def __get__(self, obj, objtype):

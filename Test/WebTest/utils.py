@@ -13,7 +13,7 @@ from functools import update_wrapper
 
 __all__ = ['_find_input', '_set_input', '_find_and_set_input',
            'len_unicode', 'gen_random_ascii', 'gen_chinese_unicode',
-           'WebElement', 'WebDriver']
+           'ignore_exception', 'prepare_url', 'WebDriver', 'WebElement']
 
 ######################################################################
 #  不要交叉 import
@@ -104,13 +104,13 @@ def index_displayed(func):
     def wrapper(self, by, value, visible=True):
         items = func(self, by, value)
         if visible is False:
-            return list(enumerate(items))
+            return list(enumerate(items, 1))
         '''
         为什么需要显示 size > 0??
         x.is_displayed() and x.size['height'] * x.size['width']
         '''
         return filter(
-            lambda (idx, x): x.is_displayed(), enumerate(items))
+            lambda (idx, x): x.is_displayed(), enumerate(items, 1))
     return update_wrapper(wrapper, func)
 
 '''
@@ -135,6 +135,16 @@ def set_date_wraps(cls):
         super(cls, obj).__set__(obj, value)
     return __date_set__
 '''
+
+
+def ignore_exception(func):
+    def wrapper(*args, **kwargs):
+        try:
+            ret = func(*args, **kwargs)
+            return ret
+        except Exception as e:
+            return e
+    return update_wrapper(wrapper, func)
 
 
 def _find_input(element):

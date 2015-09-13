@@ -5,6 +5,7 @@ from collections import defaultdict
 from .models.const import WIDTH, API_STATUS
 
 __all__ = ['ThreadLocal']
+
 #---------------------------------------------------------------------------
 #  Store results of test suite
 
