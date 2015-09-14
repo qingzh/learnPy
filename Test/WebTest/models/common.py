@@ -14,13 +14,20 @@ TODO:
  只有root元素变的时候才需要修改元素
  如何利用这个进行优化？
 
+FIXME：
+如果把所有的find_element(s)操作都定义成相对于浏览器(WebDriver)的
+是不是简单些？！
+为什么要把 parent 定义成上一级操作的 root WebElement 元素呢？
+
+考虑到 _change_flag 这个优化不成立，所以，直接相对于浏览器操作最简单！
+
 """
 from ..utils import *
 from ..compat import (
-    CustomProperty, By, WebElement,
-    WebDriver, NoSuchElementException, ElementNotVisibleException)
-from APITest.models.models import _slots_class
+    By, WebDriver, ElementNotVisibleException)
 import logging
+from functools import update_wrapper
+import lxml.html
 
 log = logging.getLogger(__name__)
 
@@ -28,10 +35,6 @@ __all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
            'DictElement', 'BaseContainer', 'ContainerElement', 'BaseContainer',
            'ListContainer', 'DictContainer', 'PageInfo', 'StatusElement',
            'LoginPage', 'BaseTableContainer']
-
-
-PageInfo = _slots_class(
-    'PageInfo', ('currentPage', 'level', 'totalPage', 'totalRecord', 'pageIndex'))
 
 ##########################################################################
 #  Timing Decorator
@@ -50,68 +53,19 @@ for entry in entries:
 #  element 类
 
 
-class BaseElement(property):
-
-    '''
-    @attr by: By.XPATH, By.CLASS, ...
-    @attr locator:
-    根据附属的 BaseContainer 对象决定元素位置
-    BaseContainer.root.find_element(by, locator)
-    '''
-    """ FIXME
-    感觉…… BaseElement 可以做成 (parent=None) 的 BaseContainer
-    """
-
-    def __init__(self, by, locator):
-        self.by = by
-        self.locator = locator
-
-    def __get__(self, obj, objtype=None):
-        '''
-        property `root` is dynamic, it's IMPORTANT
-        return WebElement
-        '''
-        if obj is None:
-            return self
-        #  WebElement
-        if not isinstance(obj, WebElement):
-            root = obj.root
-        else:
-            root = obj
-
-        try:
-            item = root.find_element(self.by, self.locator)
-        except Exception as e:
-            log.debug(
-                'Obj:%s\nSelf:%s\nParent:%s, By:%s, Locator:%s',
-                type(obj), type(self), obj.parent, self.by, self.locator)
-            raise e
-        '''
-        except (NoSuchElementException, ElementNotVisibleException):
-            root.click()
-            item = root.find_element(self.by, self.locator)
-        '''
-        return item
-
-
-class InputElement(BaseElement):
-
-    def __set__(self, obj, value):
-        # __get__ 的时候碰到异常
-        item = super(InputElement, self).__get__(obj)
-        if not isinstance(value, (basestring, bool)):
-            value = str(value)
-        if item is None:
-            raise TypeError("Not `input` element!")
-        element = _find_input(item) or item
-        _set_input(element, value)
-
-
 """
 由于key_map的存在
 是否可以复用DictContainer??
     修改 __set__ 方法
 """
+
+
+class BaseElement(object):
+    pass
+
+
+class InputElement(BaseElement):
+    pass
 
 
 class StatusElement(BaseElement):
@@ -211,7 +165,6 @@ class ListMixin(list):
 
     def __iter__(self):
         return (self.__getitem__(i) for i in xrange(len(self)))
-
 
 
 class DictMixin(dict):
@@ -314,96 +267,6 @@ class ContainerElement(BaseElement):
         # Do nothing
 
 
-class ListElement(ContainerElement):
-
-    def __init__(self, by, locator, subobj=None):
-        '''
-        @param subobj: BaseElement or BaseContainer
-        '''
-        subobj = subobj or BaseElement
-        super(ListElement, self).__init__(
-            By.XPATH, '.', ListContainer,
-            subby=by, subxpath=locator, subobj=subobj)
-
-    def __get__(self, obj, objtype=None):
-        if obj is None:
-            return self
-        # root: WebElement
-        root = super(ListElement, self).__get__(obj)
-        items = root.find_elements_with_index(
-            self.subby, self.subxpath, self.visible)
-        if issubclass(self._subobj, BaseElement):
-            self._init = lambda x, y: self._subobj(x, y)
-        else:
-            self._init = lambda x, y: self._subobj(root, x, y)
-        items = root.find_elements_with_index(self.by, self.locator)
-        return ListMixin(
-            (self._init(self.by, '(%s)[%d]' %
-                        (self.locator, i)) for i, x in items)
-        )
-
-
-class DictElement(ContainerElement):
-
-    """
-    Like DictContainer
-    by: By.XPATH
-    locator: subxpath
-    """
-
-    def __init__(self, by, locator, subobj=None, key=None):
-        '''
-        字典的 根节点由 by, locator 决定
-        子节点由 subby, subxpath, subobj 决定
-        { key: (subby, subxpath) }
-        @param subobj: BaseElement or BaseContainer
-        '''
-        key = key or (lambda x: x.text.strip())
-        subobj = subobj or BaseElement
-        super(DictElement, self).__init__(
-            By.XPATH, '.', DictContainer,
-            subby=by, subxpath=locator, subobj=subobj, key=key)
-
-    """
-    __get__ 返回的是一个字典
-    __getitem__ 应该修改的是返回的字典><
-
-    重构一个Dict类
-
-    应该是一次性生成所有元素，再动态设置root
-    DictElement的subobj也是Property
-
-    # Nested property
-    """
-
-    def __get__(self, obj, objtype=None):
-        '''
-        __get__ 方法不需要考虑元素是否可见，但是如果本身是 list/dict, 则要考虑生成的列表是否要求可见了
-        __set__ 的时候一定要是可见的，所以，需要进行检查~
-        '''
-        if obj is None:
-            return self
-        # root: WebElement
-        root = self.root = super(ListElement, self).__get__(obj)
-        #
-        init = lambda x, y: self._subobj(by=x, locator=y)
-        items = root.find_elements_with_index(
-            self._subby, self._subxpath, self._visible)
-        # clear dict
-        self.clear()
-        # key : (by, locator); 需要动态配置 parent/root 结点
-        # 这里的值是property, 存在 __get__, __set__ 方法
-        dict.__init__(self, (
-            (self._key(x), init(
-                self._subby, _selector_dict[self._subby] % (self._subxpath, i)))
-            for i, x in items
-        ))
-        return self
-
-    def get(self, key, default=None):
-        return self.__getitem__(key, default)
-
-
 class AlertElement(InputElement):
 
     def __set__(self, obj, value):
@@ -453,10 +316,74 @@ class RootProperty(property):
             # 这样避免使用 obj.parent
             # 因为 obj.parent 的定义就在 ⬆️ \(^o^)/~
             obj.rget(obj._parent)
-            obj._change_flag = False
+            # obj._change_flag = False
         return obj._root
 
-from functools import update_wrapper
+
+class WebElementMixin(object):
+
+    @property
+    def text(self):
+        '''
+        根节点获得的 text 信息
+        用来粗糙对比两个页面的文本一致，但是无法比较css样式等
+        '''
+        root = self.root
+        if isinstance(root, WebDriver):
+            return root.find_element_by_xpath('//html').text
+        # isinstance(root, WebElement):
+        return root.text
+
+    @property
+    def page_source(self):
+        root = self.root
+        root = root if isinstance(root, WebDriver) else root.parent
+        return root.execute_script('return arguments[0].innerHTML', root)
+
+    def is_displayed(self):
+        return self.root.is_displayed()
+
+    def is_enabled(self):
+        return self.root.is_enabled()
+
+
+class ProxyMixin(object):
+
+    def __init__(self, parent, *args, **kwargs):
+        self._parent = parent
+        super(ProxyMixin, self).__init__(*args, **kwargs)
+
+    def __getitem__(self, key):
+        # 对 chained BaseContainer 没有用
+        #
+        obj = super(ProxyMixin, self).__getitem__(key)
+        return self._parent.__getitem__(obj)
+
+    def __setitem__(self, key, value):
+        obj = super(ProxyMixin, self).__getitem__(key)
+        self._parent.__setitem__(obj, value)
+
+    @property
+    def text():
+        return self._parent.text
+
+    def is_displayed(self):
+        return self._parent.is_displayed()
+
+    def is_enabled(self):
+        return self._parent.is_enabled()
+
+    @property
+    def page_source(self):
+        return self._parent.page_source
+
+
+class ContainerList(ProxyMixin, list):
+    pass
+
+
+class ContainerDict(ProxyMixin, dict):
+    pass
 
 
 def get_dec(func):
@@ -464,21 +391,29 @@ def get_dec(func):
         if obj is None:
             return self.__class__
         self.parent = obj.root
+        # 为什么要取消这个优化？？
+        # 因为可能 obj.root 元素位置并没有变，但是，_element已经变了
+        # 但是 get_dec 里只根据parent来判断，所以是不对的……
+        # 所以... _element这个设置是不是基本没用的…… 呜呜
+        # _parent, by, locator 都不变，但是取到的元素变了！
+        # 所以 _change_flag 的优化都要取消吧……
+        """
         if not self._change_flag:
             # 说明没有变化，意即self.root没有变化
             # 注意是 self.root 不是 obj.root
             '''
-            这里一定要用 self._element， 因为 
-            if not self._change_flag: return self
+            这里一定要用 self._element， 因为
+               if not self._change_flag: return self
             而 self._element 实际上就是  child->child->child.__get__(self)
 
             '''
             return self._element
+        """
         return func(self, obj, objtype)
     return update_wrapper(wrapper, func)
 
 
-class BaseContainer(property):
+class BaseContainer(WebElementMixin, property):
 
     '''
     __slots__ 用来记住可以复制的 属性，以及 赋值顺序
@@ -502,9 +437,19 @@ class BaseContainer(property):
         True: parent 元素改变了，这表示其他元素也要跟着改变
         Flase: 一旦重新获取了 root 就重新置为 Flase，表示不需要重新获取了
         '''
-        self._change_flag = False
+        self._change_flag = True
 
     parent = ParentProperty()
+
+    @property
+    def _change_flag(self):
+        if isinstance(self.parent, WebDriver):
+            return True
+        return self.__dict__['_change_flag']
+
+    @_change_flag.setter
+    def _change_flag(self, value):
+        self.__dict__['_change_flag'] = value
 
     @get_dec
     def __get__(self, obj, objtype=None):
@@ -536,7 +481,7 @@ class BaseContainer(property):
         if child is None:
             self._element = self
         else:
-            self._element = self._next.__get__(self, type(self))
+            self._element = child.__get__(self, type(self))
         return self._element
 
     def _click_parent(self, level=3):
@@ -572,11 +517,13 @@ class BaseContainer(property):
         # 这是不可能的，不可能从其他类调用这个类的成员属性
         # selfparent = obj.root
         """
-        这个只能这样赋值： 
-        obj.BaseContainer = value
+        这个只能这样赋值:
+            obj.BaseContainer = value
         """
+        self.parent = obj.root
         root, child = self.root, self._next
-        if not root.is_displayed():
+        # root: List ...
+        if not self.is_displayed():
             ignore_exception(self._click_parent)()
         if child is None:
             return _find_and_set_input(root, value)
@@ -610,29 +557,12 @@ class BaseContainer(property):
         self._change_flag == false:
         只能说明元素对象没有变，但是元素状态可能是变化的。
         '''
+        # parent = parent or self.parent
         if self.by is not None:
             self._root = parent.find_element(self.by, self.locator)
         else:
             self._root = parent
         return self._root
-
-    @property
-    def text(self):
-        '''
-        根节点获得的 text 信息
-        用来粗糙对比两个页面的文本一致，但是无法比较css样式等
-        '''
-        root = self.root
-        if isinstance(root, WebDriver):
-            return root.find_element_by_xpath('//html').text
-        # isinstance(root, WebElement):
-        return root.text
-
-    @property
-    def page_source(self):
-        root = self.root
-        root = root if isinstance(root, WebDriver) else root.parent
-        return root.execute_script('return arguments[0].innerHTML', root)
 
     def __call__(self, **kwargs):
         '''
@@ -645,29 +575,15 @@ class BaseContainer(property):
         for key, value in kwargs.iteritems():
             setattr(self, key, value)
 
-    def is_displayed(self):
-        return self.root.is_displayed()
-
-    def is_enabled(self):
-        return self.root.is_enabled()
-
 
 class BasePage(BaseContainer):
 
     def __init__(self, parent, by=None, locator=None, child=None):
-        super(BasePage).__init__(
+        super(BasePage, self).__init__(
             by=by, locator=locator, child=child, parent=parent)
 
     def __set__(self, obj, value):
         raise Exception("can't set BasePage.parent!")
-
-
-class FakeObject(object):
-    root = None
-
-    def __call__(self, value):
-        self.root = value
-        return self
 
 
 class ListContainer(BaseContainer):
@@ -704,15 +620,14 @@ class ListContainer(BaseContainer):
         self.locator = locator or './/*[not(*) and text() != ""]'
         self._visible = visible
 
-    @get_dec
     def __get__(self, obj, objtype=None):
         '''
         直接通过 obj.ListContainer  查询
         parent 还是 parent(父节点的root)
         1. __get__ 需要变化，返回一个list, child需要遍历list成员
 
-        如果使用 
-        lst = obj.ListContainer
+        如果使用
+            lst = obj.ListContainer
         得到的列表里的元素就是固定的了
 
         FIXME:
@@ -720,7 +635,15 @@ class ListContainer(BaseContainer):
         '''
         # 此时通过self.root 就能获取列表
         # self.root 需要返回一个 list
-        fake_obj = FakeObject()
+        if obj is None:
+            # self.__class__ ??
+            return self
+        # 为什么要设置 ._parent = None
+        # 因为可能 table 元素位置并没有变，但是，_element的元素已经变了
+        # 但是 get_dec 里只根据parent来判断，所以是不对的……
+        # 所以... _element这个设置是不是基本没用的…… 呜呜
+        self._parent = None
+        self.parent = obj.root
         root, child, t = self.root, self._next, type(self)
         # 这里也需要动态配置
         # 否则刷新页面页面之后，就会报错
@@ -730,15 +653,17 @@ class ListContainer(BaseContainer):
         # `BaseElement`
         # 这里有个问题，items拿到的是显示出来的item
         # 怎么让subxpath去匹配显示的item
+        self._element = ContainerList(
+            self, (BaseContainer(parent=x, child=child) for x in root))
         if child is None:
             # 这里应该是  BaseContainer 数组
             # 数组的 by=By.XPATH, locator=XPATH[i]
             # 或者，只设置parent，不设置 by, locator
-            self._element = list(BaseContainer(parent=x) for x in root)
+            return self._element
         else:
-            self._element = list(child.__get__(fake_obj(x), t) for x in root)
-        #!! ListContainer 应该返回一串 property (BaseContainer)
-
+            self._element = ContainerList(
+                self, (child.__get__(x, t) for x in self._element))
+        # ListContainer 应该返回一串 property (BaseContainer)
         # 没有child的话就是   self._root 有的话 就是   self._element ?
         #  即使返回的是 Container 列表也没关系
         #  因为 Container 已经设置成了 不通过 实例调用就不能赋值了。
@@ -748,15 +673,15 @@ class ListContainer(BaseContainer):
         这里返回 self, 则 self._element[i] 的赋值就可以通过
         obj.ListContainer[i] 调用 ListContainer.__setitem__ 来调用
         """
-        return self
+        return self._element
 
     def __set__(self, obj, value):
         '''
         禁止通过 obj.ListContainer = value 赋值
         '''
-        raise Exception("Can't set value to a list object!")
+        raise Exception("Can't set value to a list container!")
 
-    def __getitem__(self, idx):
+    def __getitem__(self, obj):
         '''
         通过 (obj.ListContainer)[idx]  查询
         如果 obj 没有变的话，其实elements是不会变的
@@ -767,12 +692,11 @@ class ListContainer(BaseContainer):
         就不需要做任何改变~！
 
         这里应该和 BaseContainer 一致，返回 BaseContainer 实例
-        而不是返回root 
+        而不是返回root
+        Q: 那么到底是把 _root 做成 list 还是根据 idx 再取root???
 
-       Q: 那么到底是把 _root 做成 list 还是根据 idx 再取root???
-
-        A: 做成 根据 idx 取 root，则可以返回 
-        child.__get__(self)
+        A: 做成 根据 idx 取 root，则可以返回
+            child.__get__(self)
         '''
         """
         这个适合： l = obj.ListContainer  《-----  ListContainer
@@ -781,21 +705,24 @@ class ListContainer(BaseContainer):
             el = value  <<------ 无效！这样赋值是无效的
             只能 el.__set__()
         是不对的！
-        """
-        child, obj, t = self_next, self._element[idx], type(self)
-        if child is None:
-            return obj.__get__(self, t)
-        return child.__get__(self, t)
 
-    def __setitem__(self, idx, value):
+        使用 self._element[idx] 是不是动态的？是。
+        """
+        child, t = self._next, type(self)
+        # __get__ 只需要用到 .parent
+        if child is None:
+            return obj
+        return child.__get__(obj, t)
+
+    def __setitem__(self, obj, value):
         '''
         通过 obj.ListContainer[idx] = value 赋值
         '''
-        child, obj = self_next, self._element[idx]
+        child = self._next
         if child is None:
-            obj.__set__(self, value)
+            _find_and_set_input(obj.root, value)
         else:
-            child.__set__(self, value)
+            child.__set__(obj, value)
 
     def rget(self, parent):
         '''
@@ -803,12 +730,14 @@ class ListContainer(BaseContainer):
         maybe a `parent` or a `WebElement`
         '''
         self._root = parent.find_elements(
-            self.by, self.locator, self.visible)
+            self.by, self.locator, self._visible)
         return self._root
 
     @property
     def selected(self):
-        for element in self:
+        # FIXME 应该是返回 BaseContainer
+        # 现在是返回 WebElement
+        for element in self._element:
             if elemet.is_selected():
                 yield element
 '''
@@ -830,7 +759,8 @@ class DictContainer(BaseContainer):
     do Initialization of dict when set `parent`
     '''
 
-    def __init__(self, parent=None, by=None, locator=None, subby=None, subxpath=None, subobj=None, key=None, visible=True):
+    def __init__(self, by=None, locator=None,
+                 key=None, parent=None, visible=True):
         '''
         find all leaf nodes with no-blank displayed text
         element with no child: `*[not(child::*)]` or `*[not(*)]`
@@ -841,67 +771,98 @@ class DictContainer(BaseContainer):
         TODO:
             subobj 是一个 class property
         '''
-        super(DictContainer, self).__init__(parent, by, locator)
-        self._subby = subby or By.XPATH
-        self._subxpath = subxpath or './/*[not(*) and text() != ""]'
-        self._subobj = subobj or BaseElement
+        super(DictContainer, self).__init__(
+            parent=parent, by=by, locator=locator)
+        # self._key 是对 root 结点操作
         self._key = key or (lambda x: x.text.strip())
         self._visible = visible
 
     def __get__(self, obj, objtype=None):
-        if obj is None or isinstance(obj, BaseElement):
+        '''
+        key(x.root)
+        '''
+        if obj is None:
             return self
         self.parent = obj.root
-        return self
+        root, child, t = self.root, self._next, type(self)
+        if child is None:
+            self._element = ContainerDict(
+                self,
+                ((self._key(x), BaseContainer(parent=x, child=child))
+                    for x in root))
+        else:
+            # FIXME: 这里 x 应该是最底层的 root
+            temp = (child.__get__(x, t) for x in root)
+            self._element = ContainerDict(
+                self,
+                ((self._key(x.root), x) for x in temp))
+        return self._element
 
     def __set__(self, obj, value):
-        if obj is None or isinstance(obj, BaseElement):
-            return self
+        '''
+        禁止通过 obj.ListContainer = value 赋值
+        没法子 通过先 __get__ 再赋值……
+        可以自己想想为什么……
+        '''
         self.parent = obj.root
-
-    def pset(self, value):
-        self._parent = value
-        root = self.root
-        '''
-        TODO:
-        这里最好是改成 self._subobj(by=x, locator=y)
-        然后再手动设置 .parent = root
-        即使是 BaseElement 也能设置 .parent
-        '''
-        if not isinstance(self._subobj, type):
-            init = lambda x, y: self._subobj(x, y)
-        elif issubclass(self._subobj, BaseElement):
-            init = lambda x, y: self._subobj(x, y)
+        root, child, t = self.root, self._next, type(self)
+        if not self.is_displayed():
+            ignore_exception(self._click_parent)()
+        if child is None:
+            for x in root:
+                if self._key(x) == value:
+                    return _find_and_set_input(x, True)
         else:
-            init = lambda x, y: self._subobj(root, x, y)
-        items = root.find_elements_with_index(
-            self._subby, self._subxpath, self._visible)
-        # print self._subby, self._subxpath, root.text
-        # print items
+            # FIXME: 这里 x 应该是最底层的 root
+            temp = (child.__get__(x, t) for x in root)
+            for x in temp:
+                if self._key(x.root) == value:
+                    return _find_and_set_input(x.root, True)
+        raise KeyError(value)
+
+    def __getitem__(self, obj):
+        """
+
+        """
+        child, t = self._next, type(self)
+        # __get__ 只需要用到 .parent
+        if child is None:
+            # 如果要用 obj.__get__ 的话，需要配置 locator[i]
+            #
+            # return obj.__get__(self, t)
+            return obj
+        return child.__get__(obj, t)
+
+    def __setitem__(self, obj, value):
         '''
-        初始化
-        key: self._key(x), x is the `WebElement` object of node
-        value: WebElement
+        通过 obj.ListContainer[idx] = value 赋值
         '''
+        # 怎么保证可见性？ 生成这个字典的时候就是用的可见元素的……
+        child = self._next
+        if child is None:
+            _find_and_set_input(obj.root, value)
+        else:
+            child.__set__(obj, value)
+
+    def rget(self, parent):
         '''
-        在这里用的是初始化，相当于 update 操作
-        应该是 先删除，后覆盖；否则会有 遗留的状态
+        Readonly & Dynamic: parent.find_element(by, locator)
+        maybe a `parent` or a `WebElement`
         '''
-        self.clear()
-        dict.__init__(self, (
-            (self._key(x), init(
-                self._subby, _selector_dict[self._subby] % (self._subxpath, i)))
-            for i, x in items
-        ))
+        self._root = parent.find_elements(
+            self.by, self.locator, self._visible)
+        return self._root
+
+    def is_displayed(self):
+        return self.parent.is_displayed()
 
     @property
     def selected(self):
-        for key in self.keys():
-            element = self[key]
+        D = self._element
+        for key in D.keys():
+            element = D[key]
             if element.is_selected():
                 yield key
-
-import lxml.html
 
 
 class BaseTableContainer(BaseContainer):
@@ -953,10 +914,11 @@ class MouseOverMixin(BaseContainer):
 ##########################################################################
 #   其他
 
-
+'''
 class LoginPage(BaseContainer):
 
     username = InputElement(By.XPATH, '//input[@id="username"]')
     password = InputElement(By.XPATH, '//input[@id="password"]')
     captcha = InputElement(By.XPATH, '//input[@name="captchaResponse"]')
     submit = InputElement(By.XPATH, '//input[@name="submit"]')
+'''
