@@ -16,7 +16,7 @@ TODO:
 
 FIXME：
 如果把所有的find_element(s)操作都定义成相对于浏览器(WebDriver)的
-是不是简单些？！
+是不是简单些？！不会，因为不方便组装……
 为什么要把 parent 定义成上一级操作的 root WebElement 元素呢？
 
 考虑到 _change_flag 这个优化不成立，所以，直接相对于浏览器操作最简单！
@@ -31,10 +31,10 @@ import lxml.html
 
 log = logging.getLogger(__name__)
 
-__all__ = ['BaseElement', 'InputElement', 'AlertElement', 'ListElement',
-           'DictElement', 'BaseContainer', 'ContainerElement', 'BaseContainer',
-           'ListContainer', 'DictContainer', 'PageInfo', 'StatusElement',
-           'LoginPage', 'BaseTableContainer']
+__all__ = [ 
+    'BaseContainer', 'BasePage', 'SelectorContainer',
+    'ListContainer', 'DictContainer',
+    'LoginPage', 'BaseTableContainer']
 
 ##########################################################################
 #  Timing Decorator
@@ -60,15 +60,7 @@ for entry in entries:
 """
 
 
-class BaseElement(object):
-    pass
-
-
-class InputElement(BaseElement):
-    pass
-
-
-class StatusElement(BaseElement):
+class SelectorContainer(BaseContainer):
 
     '''
     轮选
@@ -141,133 +133,7 @@ _selector_dict = {
 }
 
 
-class ListMixin(list):
-
-    def __getitem__(self, key):
-        item = super(ListMixin, self).__getitem__(key)
-        if hasattr(item, '__get__'):
-            return item.__get__(self, type(self))
-        else:
-            return item
-
-    def __setitem__(self, key, value):
-        '''
-        We assume that item is an `object`
-        需要动态查看是否有 __set__ 方法，然后调用
-        否则只需要 _set_input
-        '''
-        item = super(ListMixin, self).__getitem__(key)
-        if hasattr(item, '__set__'):
-            item.__set__(self, value)
-            return
-        item = self.__getitem__(key)
-        _find_and_set_input(item)
-
-    def __iter__(self):
-        return (self.__getitem__(i) for i in xrange(len(self)))
-
-
-class DictMixin(dict):
-
-    def __getitem__(self, key):
-        item = super(DictMixin, self).__getitem__(key)
-        if isinstance(item, property):
-            return item.__get__(self, type(self))
-        else:
-            return item
-
-    def __setitem__(self, key, value):
-        '''
-        (True, False, None): click
-        (basestring): send_keys
-        '''
-        item = super(DictMixin, self).__getitem__(key)
-        if isinstance(item, property):
-            item.__set__(self, value)
-            # or ?? item = value
-            return
-        # item = self.__getitem__(key)
-        _find_and_set_input(item, value)
-
-    def __iter__(self):
-        return (self.__getitem__(i) for i in self.keys())
-
-    def items(self):
-        raise AttributeError("It's a property dict, `.items()` forbidden!")
-
-    iteritems = items
-
-
-class ContainerElement(BaseElement):
-
-    """
-    TODO
-    1. 现在ContainerElement是允许装配的
-       能不能让 Page也允许装配？
-    2. Nested ContainerElement?
-
-    需要注意，如果存在 点击-展现 的行为的话
-    ContainerElement 的 parent 节点一定要是 click 的！
-
-    挑战：
-    点了 单页 全选，跳出 多页全选
-    多页全选不是隐藏的，是js插入的，所以不能通过判断
-    .is_displayed()判断，而是通过抓住异常 NoSuchElementException
-    """
-    _container_ = None
-
-    def __init__(self, by, locator, obj, *args, **kwargs):
-        '''
-        by
-        locator
-        obj: container hook
-        `args, kwargs` works only if `type(obj) is type`
-        '''
-        super(ContainerElement, self).__init__(by, locator)
-        if isinstance(obj, type):
-            self._container_ = obj(None, *args, **kwargs)
-
-    def __get__(self, obj, objtype=None):
-        '''
-        return a `Container Object` instead of a `WebElement`
-        '''
-        if obj is None:
-            return self
-        root = super(ContainerElement, self).__get__(obj)
-        # FIXME
-        # Container 也可以设成动态的吧……!!
-        # 确实可以，快修修修
-        # self._container_ = root
-        self._container_.parent = root
-        return self._container_
-
-    def __set__(self, obj, value):
-        '''
-        i如果是 property, 则递归：
-        调用 __set__
-
-        注意，如果是 ContainerElement(DictContainer)
-        这里 __set__ 函数需要修订
-        '''
-        if isinstance(value, type):
-            raise AttributeError("Can't set to a class type <%s>", value)
-        if isinstance(value, BaseContainer):
-            self._container_ = value
-            return
-        if hasattr(self._container_, '__set__'):
-            root = super(ContainerElement, self).__get__(obj)
-            self._container_.__set__(root, value)
-        # 其它类型的container
-        item = self.__get__(obj)
-        if hasattr(item, '__contains__') and value in item:
-            '''
-            item[value] 调用了 DictContainer 的 __setitem__
-            '''
-            item[value] = True
-        # Do nothing
-
-
-class AlertElement(InputElement):
+class AlertContainer(BaseContainer):
 
     def __set__(self, obj, value):
         element = super(AlertElement, self).__get__(obj)
@@ -418,6 +284,14 @@ class BaseContainer(WebElementMixin, property):
     '''
     __slots__ 用来记住可以复制的 属性，以及 赋值顺序
     但是，单击呢…… 单击呢
+
+    需要注意，如果存在 点击-展现 的行为的话
+    ContainerElement 的 parent 节点一定要是 click 的！
+
+    挑战：
+    点了 单页 全选，跳出 多页全选
+    多页全选不是隐藏的，是js插入的，所以不能通过判断
+    .is_displayed()判断，而是通过抓住异常 NoSuchElementException
     '''
 
     def __init__(self, by=None, locator=None, child=None, parent=None):
@@ -629,9 +503,6 @@ class ListContainer(BaseContainer):
         如果使用
             lst = obj.ListContainer
         得到的列表里的元素就是固定的了
-
-        FIXME:
-        请根据 __getitem__ 重写
         '''
         # 此时通过self.root 就能获取列表
         # self.root 需要返回一个 list
@@ -791,7 +662,7 @@ class DictContainer(BaseContainer):
                 ((self._key(x), BaseContainer(parent=x, child=child))
                     for x in root))
         else:
-            # FIXME: 这里 x 应该是最底层的 root
+            # 这里 x 应该是最底层的 root
             temp = (child.__get__(x, t) for x in root)
             self._element = ContainerDict(
                 self,
@@ -813,7 +684,7 @@ class DictContainer(BaseContainer):
                 if self._key(x) == value:
                     return _find_and_set_input(x, True)
         else:
-            # FIXME: 这里 x 应该是最底层的 root
+            # 这里 x 应该是最底层的 root
             temp = (child.__get__(x, t) for x in root)
             for x in temp:
                 if self._key(x.root) == value:
