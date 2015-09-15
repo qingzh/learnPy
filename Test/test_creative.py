@@ -2,40 +2,30 @@
 '''
 针对 附加创意 (NewCreative) 接口的回归测试:
 '''
-__version__ = 1.0
-__author__ = 'Qing Zhang'
-
 from APITest.models.models import (APIData, AttributeDict)
 from APITest.models.creative import *
-from APITest.settings import SERVER, USERS, api, LOG_DIR
-from APITest import settings
+from APITest.settings import SERVER, USERS, api
 from APITest.utils import assert_header
 import collections
-from APITest.models import image
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 import threading
-from datetime import datetime
 import logging
 from TestCommon.utils import gen_chinese_unicode
 import urlparse
 from APITest.compat import (
-    formatter, mount, suite, ThreadLocal, STDOUT, BLANK, UndefinedException)
+    formatter, mount, suite, ThreadLocal, BLANK, UndefinedException)
+from APITest.utils import get_log_filename
 ##########################################################################
 #    log settings
 
 TAG_TYPE = u'创意'
-TIMESTAMP = datetime.now().strftime('%Y%m%d%H%M%S%f')
-LOG_DIR = r'.'
-LOG_FILENAME = '%s/%s_%s.log' % (LOG_DIR, TAG_TYPE, TIMESTAMP)
+LOG_FILENAME = get_log_filename(TAG_TYPE)
 
-__loglevel__ = logging.INFO
+__loglevel__ = logging.DEBUG
 log = logging.getLogger(__name__)
-log.setLevel(__loglevel__)
-STDOUT.setLevel(__loglevel__)
-log.addHandler(STDOUT)
-
 output_file = logging.FileHandler(LOG_FILENAME, 'w')
+log.setLevel(__loglevel__)
 output_file.setLevel(__loglevel__)
 log.addHandler(output_file)
 
@@ -46,30 +36,38 @@ DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 '''
 "creative": {
-    "getCreativeIdByAdgroupId": APIRequest(method=post, uri='/api/creative/getCreativeIdByAdgroupId'),
-    "getCreativeByAdgroupId": APIRequest(method=post, uri='/api/creative/getCreativeByAdgroupId'),
-    "getCreativeByCreativeId": APIRequest(method=post, uri='/api/creative/getCreativeByCreativeId'),
-    "getCreativeStatus": APIRequest(method=post, uri='/api/creative/getCreativeStatus'),
-    "addCreative": APIRequest(method=post, uri='/api/creative/addCreative'),
-    "updateCreative": APIRequest(method=post, uri='/api/creative/updateCreative'),
-    "deleteCreative": APIRequest(method=delete, uri='/api/creative/deleteCreative'),
+    "getCreativeIdByAdgroupId": APIRequest(
+        method=post, uri='/api/creative/getCreativeIdByAdgroupId'),
+    "getCreativeByAdgroupId": APIRequest(
+        method=post, uri='/api/creative/getCreativeByAdgroupId'),
+    "getCreativeByCreativeId": APIRequest(
+        method=post, uri='/api/creative/getCreativeByCreativeId'),
+    "getCreativeStatus": APIRequest(
+        method=post, uri='/api/creative/getCreativeStatus'),
+    "addCreative": APIRequest(
+        method=post, uri='/api/creative/addCreative'),
+    "updateCreative": APIRequest(
+        method=post, uri='/api/creative/updateCreative'),
+    "deleteCreative": APIRequest(
+        method=delete, uri='/api/creative/deleteCreative'),
     # 区别于activate creatives
-    "activateCreative": APIRequest(method=post, uri='/api/creative/activeCreative'),
+    "activateCreative": APIRequest(
+        method=post, uri='/api/creative/activeCreative'),
 }
 '''
 locals().update(api.creative)
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 # 准备测试数据
 # description 总长
 # 字典里存的是json形式，因为list不能hash
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 _local_ = threading.local()
 GLOBAL = _local_.__dict__.setdefault('global', {})
 GLOBAL[TAG_TYPE] = {}
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 
 @formatter
@@ -92,7 +90,7 @@ def _getAppIdByAdgroupId(adgroupId, server, user):
     if not isinstance(adgroupId, collections.Sequence):
         adgroupId = [adgroupId]
     res = getAppIdByAdgroupId(
-        json=APIData(header=user, body={"adgroupIds": adgroupId}), server=server)
+        header=user, body={"adgroupIds": adgroupId}, server=server)
     return res.body
 
 
@@ -100,15 +98,15 @@ def _compare_dict(a, b):
     for key, value in a.iteritems():
         if value is None:
             continue
-        assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
-            key, value, b[key])
+        assert value == b[key], 'Content Differ at key `%s`!\n'\
+            'Expected: %s\nActually: %s\n' % (key, value, b[key])
     return True
 
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 #  添加操作
 #  正常添加
 #  格式不正确
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 
 
 def _get_sublink_by_adgroupId(adgroupIds, server, user):
@@ -173,13 +171,14 @@ def test_addCreative(server, user):
     )
     GLOBAL[TAG_TYPE]['creativeId'] = creative.creativeId
     res_after = getCreativeByCreativeId(
-        server=server, header=user, body={"creativeIds": [creative.creativeId]})
+        server=server, header=user,
+        body={"creativeIds": [creative.creativeId]})
     _compare_dict(creative, res_after.body.creativeTypes[0])
 
 
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 #  测试查询操作 getCreative(.*)
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 
 @formatter
 def test_getCreativeId(server, user):
@@ -187,7 +186,8 @@ def test_getCreativeId(server, user):
     创意：获取单元ID下的创意ID getCreativeIdByAdgroupId
     '''
     res = getCreativeIdByAdgroupId(
-        header=user, body={'adgroupIds': [GLOBAL[TAG_TYPE]['input']['adgroupId']]}, server=server)
+        server=server, header=user,
+        body={'adgroupIds': [GLOBAL[TAG_TYPE]['input']['adgroupId']]})
     assert_header(res.header, STATUS.SUCCESS)
     assert set(res.body.groupCreativeIds[0].creativeIds) == set(
         [GLOBAL[TAG_TYPE]['creativeId']])
@@ -199,7 +199,8 @@ def test_getCreativeByAdgroupId(server, user):
     创意：获取单元ID下的所有创意对象 getCreativeByAdgroupId
     '''
     res = getCreativeByAdgroupId(
-        header=user, server=server, body={'adgroupIds': [GLOBAL[TAG_TYPE]['input']['adgroupId']]})
+        header=user, server=server,
+        body={'adgroupIds': [GLOBAL[TAG_TYPE]['input']['adgroupId']]})
     assert_header(res.header, STATUS.SUCCESS)
     creative = res.body.groupCreatives[0].creativeTypes[0]
     _compare_dict(GLOBAL[TAG_TYPE]['input'], creative)
@@ -211,14 +212,15 @@ def test_getCreativeByCreativeId(server, user):
     创意：通过创意ID获取创意对象 getCreativeByCreativeId
     '''
     res = getCreativeByCreativeId(
-        header=user, server=server, body={'creativeIds': [GLOBAL[TAG_TYPE]['creativeId']]})
+        header=user, server=server,
+        body={'creativeIds': [GLOBAL[TAG_TYPE]['creativeId']]})
     assert_header(res.header, STATUS.SUCCESS)
     _compare_dict(GLOBAL[TAG_TYPE]['input'], res.body.creativeTypes[0])
 
 
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 #  测试 getCreativeStatus
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 
 
 @formatter
@@ -280,10 +282,10 @@ def test_getCreative(server, user):
 
     test_getCreativeStatus(server, user)
 
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 #  测试更新操作 updateCreative
 #  和 创意更新很不一样！
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 
 
 def _update_by_dict(server, user, creativeId, change, expected):
@@ -371,9 +373,10 @@ def test_activeCreative(server, user):
     change = {'pause': True}
     _update_by_dict(server, user, creative.creativeId, change, change)
     res = activateCreative(
-        header=user, server=server, body={"creativeIds": [creative.creativeId]})
-    assert res.body.creativeTypes[
-        0].pause == False, 'Activate creative failed at `%d`!' % creativeId
+        header=user, server=server,
+        body={"creativeIds": [creative.creativeId]})
+    assert res.body.creativeTypes[0].pause == False, \
+        'Activate creative failed at `%d`!' % creativeId
     # recovery
     updateCreative(server=server, header=user, body=creative)
 
@@ -381,7 +384,9 @@ def test_activeCreative(server, user):
 @mount(api.creative)
 def test_updateCreative(server, user):
     GLOBAL[TAG_TYPE]['output'] = getCreativeByCreativeId(
-        header=user, server=server, body={'creativeIds': [GLOBAL[TAG_TYPE]['creativeId']]}).body.creativeTypes[0]
+        header=user, server=server,
+        body={'creativeIds':
+              [GLOBAL[TAG_TYPE]['creativeId']]}).body.creativeTypes[0]
 
     test_updateCreative_unchange(server, user)
     test_updateCreative_set_title_max_length(server, user)
@@ -389,9 +394,9 @@ def test_updateCreative(server, user):
     test_activeCreative(server, user)
 
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 #  测试删除操作 deleteCreative
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 
 @formatter
@@ -400,16 +405,20 @@ def test_deleteSublink(server, user):
     推广电话：删除操作 deleteSublink
     '''
     res = deleteSublink(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['sublink']['sublinkId']], "newCreativeType": TYPE.SUBLINK})
+        header=user, server=server,
+        body={
+            'sublinkIds': [GLOBAL['sublink']['sublinkId']],
+            "newCreativeType": TYPE.SUBLINK})
     assert_header(res.header, STATUS.SUCCESS)
     res = getSublinkIdByAdgroupId(
-        header=user, server=server, body={"adgroupIds": [_get_adgroupId(server, user)]})
+        header=user, server=server,
+        body={"adgroupIds": [_get_adgroupId(server, user)]})
     ids = res.body.groupSublinkIds[0].sublinkIds
     assert [] == ids, 'Delete sublinkId failed!\n%s remain existing.\n' % (ids)
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 #  测试入口
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 
 @mount(api.newCreative)
@@ -429,3 +438,5 @@ def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
     flag = all(
         (results[i].status == 'PASS' for i in range(len_before, len(results))))
     flag and recover and _delete_adgroupId(server, user)
+
+log.removeHandler(output_file)

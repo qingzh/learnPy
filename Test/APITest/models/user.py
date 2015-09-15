@@ -9,7 +9,6 @@ from functools import partial
 import logging
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
 
 
 MAX_BUDGET = 500000 - 10

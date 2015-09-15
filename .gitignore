@@ -1,6 +1,7 @@
 *.pyc
 *.log
 nohup.out
+Test/log/
 Test/APITest/settings.py
 chromedriver
 .*

@@ -9,11 +9,9 @@ store `const` in common
 import logging
 import sys
 
-__all__ = ('STDOUT', 'BLANK', 'API_STATUS', 'WIDTH', 'LOG_LEVEL')
+__all__ = ('STDOUT', 'BLANK', 'API_STATUS', 'WIDTH')
 
 STDOUT = logging.StreamHandler(sys.stdout)
-LOG_LEVEL = logging.DEBUG
-STDOUT.setLevel(LOG_LEVEL)
 
 
 class ConstType(type):

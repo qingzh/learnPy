@@ -51,12 +51,16 @@ class HttpServer(object):
     def __repr__(self):
         return repr(self.__dict__)
 
-    def set_cookies_from_driver(self, driver):
-        for cookie in driver.get_cookies():
+    def set_cookies_from_dict(self, D):
+        cookies = self.session.cookies
+        for cookie in D:
             if 'expiry' in cookie:
                 cookie['expires'] = cookie.pop('expiry')
-            self.session.cookies.set_cookie(
+            cookies.set_cookie(
                 requests.cookies.create_cookie(**cookie))
+
+    def set_cookies_from_driver(self, driver):
+        self.set_cookies_from_dict(driver.get_cookies())
 
     def prepare_cookies(self):
         '''

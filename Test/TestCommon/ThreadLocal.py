@@ -5,9 +5,24 @@ from collections import defaultdict
 from .models.const import WIDTH, API_STATUS
 
 __all__ = ['ThreadLocal']
-
-#---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 #  Store results of test suite
+
+
+PATTERN = """Test method:{name}({module})
+this is the {idx} testcase\n
+case description: {desc}
+{log}
+Runtime is: {time}
+"""
+
+
+def format_time(f):
+    ''' f: float '''
+    h = f / 3600
+    m = (f - h * 3600) / 60
+    s = f % 60
+    return '%d hours %d minutes %.2f seconds' % (h, m, s)
 
 
 class Local(threading_local):
@@ -61,11 +76,37 @@ class Local(threading_local):
         print ('{:>%ds} : {:<d}' % WIDTH.DESCRIPTION).format(
             'FAILED', len(results) - succeed)
 
-    #-------------------------------------------------------------------------
+    def format_with_ruby(self):
+        results = self.results
+        print '# Runing tests:\n'
+        strlist = []
+        failtotal = errtotal = 0
+        for idx, r in enumerate(results):
+            if r.status == API_STATUS.FAILED:
+                prefix = 'compare fail!'
+                failtotal = failtotal + 1
+            elif r.status == API_STATUS.EXCEPTION:
+                prefix = 'error'
+                errtotal = errtotal + 1
+            else:
+                prefix = 'success'
+            strlist.append(PATTERN.format(
+                name=r.function,
+                module=r.module,
+                idx=idx,
+                desc=r.description.strip(),
+                log=' '.join((prefix, r.message.strip())),
+                time=format_time(r.runtime),
+            ))
+        print '.'.join(strlist)
+        print '%d tests, %d assertions, %d failures, %d errors, %d skips' % (
+            len(results), 0, failtotal, errtotal, 0)
+
+    # ---------------------------------------------------------------------
     #
     #   我们以 server, username 作为 hash
     #
-    #-------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
 
     def get_tag_dict(self, key, tagType):
         entries = self.entries
