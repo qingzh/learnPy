@@ -2,37 +2,30 @@
 '''
 针对 附加创意 (NewCreative) 接口的回归测试:
 '''
-__version__ = 1.0
-__author__ = 'Qing Zhang'
 
 from APITest.models import image
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from APITest.models.models import APIData, AttributeDict
 from APITest.models.newCreative import *
-from APITest import settings
-from APITest.settings import SERVER, USERS, api, LOG_DIR
-from APITest.utils import assert_header
+from APITest.settings import SERVER, USERS, api
+from APITest.utils import assert_header, get_log_filename
 from APITest.compat import (
-    formatter, mount, suite, ThreadLocal, STDOUT, BLANK, UndefinedException)
-from datetime import datetime
+    formatter, mount, suite, ThreadLocal, BLANK, UndefinedException)
 import collections
 import threading
 import logging
+import urlparse
+
 ##########################################################################
 #    log settings
 
 TAG_TYPE = u'附加创意'
-TIMESTAMP = datetime.now().strftime('%Y%m%d%H%M%S%f')
-LOG_DIR = r'.'
-LOG_FILENAME = '%s/%s_%s.log' % (LOG_DIR, TAG_TYPE, TIMESTAMP)
+LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.INFO
 log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
-STDOUT.setLevel(__loglevel__)
-log.addHandler(STDOUT)
-
 output_file = logging.FileHandler(LOG_FILENAME, 'w')
 output_file.setLevel(__loglevel__)
 log.addHandler(output_file)
@@ -41,35 +34,47 @@ log.addHandler(output_file)
 
 DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
-
 '''
-    "newCreative": {
-        "getSublinkIdByAdgroupId": APIRequest(method=post, uri='/api/newCreative/getSublinkIdByAdgroupId'),
-        "getSublinkBySublinkId": APIRequest(method=post, uri='/api/newCreative/getSublinkBySublinkId'),
-        "addSublink": APIRequest(method=post, uri='/api/newCreative/addSublink'),
-        "updateSublink": APIRequest(method=post, uri='/api/newCreative/updateSublink'),
+"newCreative": {
+    "getSublinkIdByAdgroupId": APIRequest(
+        method=post, uri='/api/newCreative/getSublinkIdByAdgroupId'),
+    "getSublinkBySublinkId": APIRequest(
+        method=post, uri='/api/newCreative/getSublinkBySublinkId'),
+    "addSublink": APIRequest(
+        method=post, uri='/api/newCreative/addSublink'),
+    "updateSublink": APIRequest(
+        method=post, uri='/api/newCreative/updateSublink'),
 
-        # 删除任何指定的附加创意都用此方法
-        "deleteSublink": APIRequest(method=delete, uri='/api/newCreative/deleteSublink'),
+    # 删除任何指定的附加创意都用此方法
+    "deleteSublink": APIRequest(
+        method=delete, uri='/api/newCreative/deleteSublink'),
 
-        "getPhoneIdByAdgroupId": APIRequest(method=post, uri='/api/newCreative/getPhoneIdByAdgroupId'),
-        "getPhoneByPhoneId": APIRequest(method=post, uri='/api/newCreative/getPhoneByPhoneId'),
-        "addPhone": APIRequest(method=post, uri='/api/newCreative/addPhone'),
-        "updatePhone": APIRequest(method=post, uri='/api/newCreative/updatePhone'),
+    "getPhoneIdByAdgroupId": APIRequest(
+        method=post, uri='/api/newCreative/getPhoneIdByAdgroupId'),
+    "getPhoneByPhoneId": APIRequest(
+        method=post, uri='/api/newCreative/getPhoneByPhoneId'),
+    "addPhone": APIRequest(
+        method=post, uri='/api/newCreative/addPhone'),
+    "updatePhone": APIRequest(
+        method=post, uri='/api/newCreative/updatePhone'),
 
-        "getAppIdByAdgroupId": APIRequest(method=post, uri='/api/newCreative/getAppIdByAdgroupId'),
-        "getAppByAppId": APIRequest(method=post, uri='/api/newCreative/getAppByAppId'),
-        "addApp": APIRequest(method=post, uri='/api/newCreative/addApp'),
-        "updateApp": APIRequest(method=post, uri='/api/newCreative/updateApp'),
-    }
+    "getAppIdByAdgroupId": APIRequest(
+        method=post, uri='/api/newCreative/getAppIdByAdgroupId'),
+    "getAppByAppId": APIRequest(
+        method=post, uri='/api/newCreative/getAppByAppId'),
+    "addApp": APIRequest(
+        method=post, uri='/api/newCreative/addApp'),
+    "updateApp": APIRequest(
+        method=post, uri='/api/newCreative/updateApp'),
+}
 '''
 locals().update(api.newCreative)
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 # 准备测试数据
 # description 总长
 # 字典里存的是json形式，因为list不能hash
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 _local_ = threading.local()
 GLOBAL = _local_.__dict__.setdefault('global', {})
@@ -79,9 +84,9 @@ def _compare_dict(a, b):
     for key, value in a.iteritems():
         if value is None:
             continue
-        assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
-            key, value, b[key])
-#-------------------------------------------------------------------------
+        assert value == b[key], 'Content Differ at key `%s`!\n'\
+            'Expected: %s\nActually: %s\n' % (key, value, b[key])
+# ------------------------------------------------------------------------
 
 
 @formatter
@@ -104,15 +109,15 @@ def _getAppIdByAdgroupId(adgroupId, server, user):
     if not isinstance(adgroupId, collections.Sequence):
         adgroupId = [adgroupId]
     res = getAppIdByAdgroupId(
-        json=APIData(header=user, body={"adgroupIds": adgroupId}), server=server)
+        header=user, body={"adgroupIds": adgroupId}, server=server)
     return res.body
 
 
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 #  添加操作
 #  正常添加
 #  格式不正确
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 
 
 def _get_sublink_by_adgroupId(adgroupIds, server, user):
@@ -136,9 +141,6 @@ def _delete_adgroupId(server, user):
     tag_dict = ThreadLocal.get_tag_dict((server, user.username), tag)
     user.delete_campaign(server, tag_dict['campaignId'])
     tag_dict.clear()
-
-
-import urlparse
 
 
 def _get_url(domain, tag):
@@ -184,7 +186,8 @@ def test_getSublinkId(server, user):
     推广子链：通过单元ID查询 getSublinkBySublinkId
     '''
     res = getSublinkIdByAdgroupId(
-        header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
+        server=server, header=user,
+        body={'adgroupIds': [_get_adgroupId(server, user)]})
     assert_header(res.header, STATUS.SUCCESS)
     assert set(res.body.groupSublinkIds[0].sublinkIds) == set(
         [GLOBAL['sublink']['sublinkId']])
@@ -196,7 +199,8 @@ def test_getSublink(server, user):
     推广子链：通过子链ID查询 getSublinkBySublinkId
     '''
     res = getSublinkBySublinkId(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['sublink']['sublinkId']]})
+        header=user, server=server,
+        body={'sublinkIds': [GLOBAL['sublink']['sublinkId']]})
     assert_header(res.header, STATUS.SUCCESS)
     sublink = res.body.sublinkTypes[0]
     # It's IMPORTANT to convert `sublink` to `SublinkType`
@@ -218,8 +222,8 @@ def _updateSublink_and_assert(server, user, sublink):
     res = getSublinkBySublinkId(
         header=user, server=server, body={'sublinkIds': [sublinkId]})
     res_sublink = res.body.sublinkTypes[0]
-    assert res_sublink == sublink, 'Sublink content differ!\nExpected: %s\nActually: %s\n' % (
-        sublink, res_sublink)
+    assert res_sublink == sublink, 'Sublink content differ!\n'\
+        'Expected: %s\nActually: %s\n' % (sublink, res_sublink)
     GLOBAL['sublink']['output'] = sublink
 
 
@@ -230,16 +234,17 @@ def test_updateSublink_2to4(server, user):
     '''
     tag = user.get_tag(TAG_TYPE)
     sublink = GLOBAL['sublink']['output']
+    hostname = user.domain(server)
     sublink.update(
         sublinkInfos=[
             SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/2to4')),
+                gen_chinese_unicode(8), _get_url(hostname, '%s/2to4' % tag)),
             SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/2to4')),
+                gen_chinese_unicode(8), _get_url(hostname, '%s/2to4' % tag)),
             SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/2to4')),
+                gen_chinese_unicode(8), _get_url(hostname, '%s/2to4' % tag)),
             SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/2to4')),
+                gen_chinese_unicode(8), _get_url(hostname, '%s/2to4' % tag)),
         ],
         pause=True,
         status=0,
@@ -254,14 +259,15 @@ def test_updateSublink_4to3(server, user):
     '''
     tag = user.get_tag(TAG_TYPE)
     sublink = GLOBAL['sublink']['output']
+    hostname = user.domain(server)
     sublink.update(
         sublinkInfos=[
             SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/4to3')),
+                gen_chinese_unicode(8), _get_url(hostname, '%s/4to3' % tag)),
             SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/4to3')),
+                gen_chinese_unicode(8), _get_url(hostname, '%s/4to3' % tag)),
             SublinkInfo(
-                gen_chinese_unicode(8), _get_url(user.domain(server), tag + '/4to3')),
+                gen_chinese_unicode(8), _get_url(hostname, '%s/4to3' % tag)),
         ],
         pause=True,
         status=0,
@@ -271,7 +277,8 @@ def test_updateSublink_4to3(server, user):
 
 def test_updateSublink(server, user):
     res = getSublinkBySublinkId(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['sublink']['sublinkId']]})
+        header=user, server=server,
+        body={'sublinkIds': [GLOBAL['sublink']['sublinkId']]})
     assert_header(res.header, STATUS.SUCCESS)
     GLOBAL['sublink']['output'] = res.body.sublinkTypes[0]
     test_updateSublink_2to4(server, user)
@@ -284,10 +291,14 @@ def test_deleteSublink(server, user):
     推广电话：删除操作 deleteSublink
     '''
     res = deleteSublink(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['sublink']['sublinkId']], "newCreativeType": TYPE.SUBLINK})
+        header=user, server=server,
+        body={
+            'sublinkIds': [GLOBAL['sublink']['sublinkId']],
+            "newCreativeType": TYPE.SUBLINK})
     assert_header(res.header, STATUS.SUCCESS)
     res = getSublinkIdByAdgroupId(
-        header=user, server=server, body={"adgroupIds": [_get_adgroupId(server, user)]})
+        header=user, server=server,
+        body={"adgroupIds": [_get_adgroupId(server, user)]})
     ids = res.body.groupSublinkIds[0].sublinkIds
     assert [] == ids, 'Delete sublinkId failed!\n%s remain existing.\n' % (ids)
 
@@ -299,9 +310,9 @@ def test_addSublink_four(server, user):
     raise UndefinedException
 
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 #  推广APP
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 @formatter
 def test_addApp(server, user):
@@ -339,10 +350,11 @@ def test_getAppId(server, user):
     推广APP：获取1个单元ID下的推广APP getAppIdByAdgroupId
     '''
     res = getAppIdByAdgroupId(
-        header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
+        server=server, header=user,
+        body={'adgroupIds': [_get_adgroupId(server, user)]})
     assert_header(res.header, STATUS.SUCCESS)
-    assert set(res.body.groupAppIds[0].appIds) == set(
-        [GLOBAL['app']['appId']]), 'appId differ! Expected %s, got %s.\n' % (GLOBAL['app']['appId'], res.body.groupAppIds[0].appIds)
+    assert set(res.body.groupAppIds[0].appIds) == set([GLOBAL['app']['appId']]), 'appId differ! Expected %s, got %s.\n' % (
+        GLOBAL['app']['appId'], res.body.groupAppIds[0].appIds)
 
 
 @formatter
@@ -361,8 +373,9 @@ def test_getApp(server, user):
     res = getAppByAppId(
         header=user, server=server, body={'appIds': [GLOBAL['app']['appId']]})
     assert_header(res.header, STATUS.SUCCESS)
-    assert GLOBAL['app']['input'] <= res.body.appTypes[
-        0], 'App content differ!\nExpected: %s\nActually: %s\n' % (GLOBAL['app']['input'], res.body.appTypes[0])
+    assert GLOBAL['app']['input'] <= res.body.appTypes[0], \
+        'App content differ!\nExpected: %s\nActually: %s\n' % (
+            GLOBAL['app']['input'], res.body.appTypes[0])
 
 
 @formatter
@@ -371,17 +384,21 @@ def test_deleteApp(server, user):
     推广APP：删除操作 deleteApp
     '''
     res = deleteSublink(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['app']['appId']], "newCreativeType": TYPE.APP})
+        header=user, server=server,
+        body={
+            'sublinkIds': [GLOBAL['app']['appId']],
+            "newCreativeType": TYPE.APP})
     assert_header(res.header, STATUS.SUCCESS)
     res = getAppIdByAdgroupId(
-        header=user, server=server, body={"adgroupIds": [_get_adgroupId(server, user)]})
+        header=user, server=server,
+        body={"adgroupIds": [_get_adgroupId(server, user)]})
     ids = res.body.groupAppIds[0].appIds
     assert [] == ids, 'Delete appId failed!\n%s remain existing.\n' % (ids)
 
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 #  推广电话
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 @formatter
 def test_addPhone(server, user):
@@ -414,7 +431,8 @@ def test_getPhoneId(server, user):
     推广电话：获取单元ID下的推广电话 getPhoneIdByAdgroupId
     '''
     res = getPhoneIdByAdgroupId(
-        header=user, body={'adgroupIds': [_get_adgroupId(server, user)]}, server=server)
+        server=server, header=user,
+        body={'adgroupIds': [_get_adgroupId(server, user)]})
     assert_header(res.header, STATUS.SUCCESS)
     assert set(res.body.groupPhoneIds[0].phoneIds) == set(
         [GLOBAL['phone']['phoneId']])
@@ -426,10 +444,12 @@ def test_getPhone(server, user):
     推广电话：根据电话ID查询 getPhoneByPhoneId
     '''
     res = getPhoneByPhoneId(
-        header=user, server=server, body={'phoneIds': [GLOBAL['phone']['phoneId']]})
+        header=user, server=server,
+        body={'phoneIds': [GLOBAL['phone']['phoneId']]})
     assert_header(res.header, STATUS.SUCCESS)
-    assert GLOBAL['phone']['input'] <= res.body.phoneTypes[
-        0], 'Phone content differ!\nExpected: %s\nActually: %s\n' % (GLOBAL['phone']['input'], res.body.phoneTypes[0])
+    assert GLOBAL['phone']['input'] <= res.body.phoneTypes[0], \
+        'Phone content differ!\nExpected: %s\nActually: %s\n' % (
+            GLOBAL['phone']['input'], res.body.phoneTypes[0])
 
 
 @formatter
@@ -438,17 +458,21 @@ def test_deletePhone(server, user):
     推广电话：删除操作 deletePhone
     '''
     res = deleteSublink(
-        header=user, server=server, body={'sublinkIds': [GLOBAL['phone']['phoneId']], "newCreativeType": TYPE.PHONE})
+        header=user, server=server,
+        body={
+            'sublinkIds': [GLOBAL['phone']['phoneId']],
+            "newCreativeType": TYPE.PHONE})
     assert_header(res.header, STATUS.SUCCESS)
     res = getPhoneIdByAdgroupId(
-        header=user, server=server, body={"adgroupIds": [_get_adgroupId(server, user)]})
+        header=user, server=server,
+        body={"adgroupIds": [_get_adgroupId(server, user)]})
     ids = res.body.groupPhoneIds[0].phoneIds
     assert [] == ids, 'Delete phoneId failed!\n%s remain existing.\n' % (ids)
 
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 #  测试入口
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 
 @mount(api.newCreative)
@@ -490,3 +514,5 @@ def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
     flag = all(
         (results[i].status == 'PASS' for i in range(len_before, len(results))))
     flag and recover and _delete_adgroupId(server, user)
+
+log.removeHandler(output_file)

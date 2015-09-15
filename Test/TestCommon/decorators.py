@@ -7,6 +7,9 @@ from time import clock
 from functools import update_wrapper, partial
 from .threadlocal import ThreadLocal
 from .utils import is_sequence
+import inspect
+import os.path
+import traceback
 
 __all__ = ['formatter', 'mount', 'suite']
 FORMATTER_SWITCH = True
@@ -18,7 +21,6 @@ def secondsToStr(t):
                [(t * 1000,), 1000, 60, 60])
 
 ErrorFormat = '[{}] {}'
-NameFormat = '{}.{}'
 
 
 def formatter(func):
@@ -27,9 +29,9 @@ def formatter(func):
 
     def wrapper(*args, **kwargs):
         tr = TestResult(description=func.func_doc)
-        begin = clock()
+        ret, begin = None, clock()
         try:
-            func(*args, **kwargs)
+            ret = func(*args, **kwargs)
             tr.status = API_STATUS.SUCCESS
             tr.message = API_STATUS.SUCCESS
         except AssertionError as e:
@@ -40,15 +42,15 @@ def formatter(func):
             tr.message = e.message
         except Exception as e:
             tr.status = API_STATUS.EXCEPTION
-            if e.message:
-                tr.message = ErrorFormat.format(type(e).__name__, e.message)
-            else:
-                tr.message = ErrorFormat.format(
-                    type(e).__name__,  ','.join(e.args))
-        tr.function = NameFormat.format(func.__module__, func.__name__)
+            tr.message = traceback.format_exc()
         tr.runtime = clock() - begin
+        tr.function = func.__name__
+        mname = func.__module__
+        if mname == '__main__':
+            mname = os.path.basename(inspect.getfile(func))
+        tr.module = mname
         ThreadLocal.get_results().append(tr)
-        return tr
+        return ret
     return update_wrapper(wrapper, func)
 
 

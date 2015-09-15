@@ -364,8 +364,8 @@ USERID = 1520
 SERVER = 'https://e.sm.cn'
 '''
 # 日期区间：5月份
-startDate = date(2015, 7, 15)
-endDate = date(2015, 8, 15)
+startDate  = '2015-07-15'
+endDate = '2015-08-15'
 
 RE_LEVEL = re.compile(r'(/+)?cpc/+(?P<level>[^/]+)')
 

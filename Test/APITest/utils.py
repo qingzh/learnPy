@@ -13,14 +13,23 @@ from requests.exceptions import InvalidURL
 import requests
 from lxml import etree
 from .models.const import STATUS
+from .settings import LOG_DIR
+from datetime import datetime
+import os
 
 log = logging.getLogger(__name__)
+
+__all__ = [
+    'BLOCK_SIZE', 'get_log_filename', 'write_file',
+    'assert_header', 'prepare_cookies', 'validate_url',
+    'len_unicode', 'sub_commas', 'md5_of_file']
 
 BLOCK_SIZE = 1 << 15
 server_regex = re.compile(
     r'^(?P<schema>https?://)?'  # http:// or https://
     # domain...
-    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'
+    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|'
+    r'[A-Z0-9-]{2,}\.?)|'
     r'localhost|'  # localhost...
     r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
     r'(?::\d+)?'  # optional port
@@ -33,6 +42,14 @@ header_dict = {
     STATUS.PARTIAL_FAIL: "partial fail",
     STATUS.FAIL: "fail"
 }
+
+
+def get_log_filename(tag, suffix=None):
+    suffix = suffix or datetime.now().strftime('%Y%m%d%H%M%S%f')
+    p = os.path.join(LOG_DIR, '..', 'log')
+    if not os.path.exists(p):
+        os.makedirs(p)
+    return os.path.join(p, '%s_%s.log' %(tag, suffix))
 
 
 def assert_header(header, status=STATUS.SUCCESS):
@@ -65,18 +82,19 @@ _encode_params = requests.PreparedRequest._encode_params
 
 
 headers = {
-    #'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    #'Accept-Encoding': 'gzip, deflate',
-    #'Accept-Language': 'zh-CN,zh;q=0.8',
-    #'Cache-Control': 'max-age=0',
+    # 'Accept-Encoding': 'gzip, deflate',
+    # 'Accept-Language': 'zh-CN,zh;q=0.8',
+    # 'Cache-Control': 'max-age=0',
     'Connection': 'keep-alive',
     'Content-Length': '0',
     'Content-Type': 'application/x-www-form-urlencoded',
     # 'Cookie': r.headers.get('set-cookie'),
-    #'Host': '',
+    # 'Host': '',
     # 'Origin': 'http://',
     # 'Referer': 'http://',
-    #'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36'
+    # 'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) '
+    #               'AppleWebKit/537.36 (KHTML, like Gecko) '
+    #               'Chrome/43.0.2357.130 Safari/537.36'
 }
 
 
@@ -306,8 +324,9 @@ class SafeConfigParser(ConfigParser.SafeConfigParser):
             elif c == "(":
                 m = self._interpvar_re.match(rest)
                 if m is None:
-                    raise InterpolationSyntaxError(option, section,
-                                                   "bad interpolation variable reference %r" % rest)
+                    raise InterpolationSyntaxError(
+                        option, section,
+                        "bad interpolation variable reference %r" % rest)
                 # case sensitive
                 # var = self.optionxform(m.group(1))
                 var = m.group(1)
@@ -333,4 +352,5 @@ class SafeConfigParser(ConfigParser.SafeConfigParser):
             else:
                 raise InterpolationSyntaxError(
                     option, section,
-                    "'%%' must be followed by '%%' or '(', found: %r" % (rest,))
+                    "'%%' must be followed by '%%' or '(', found: %r" % (
+                        rest,))

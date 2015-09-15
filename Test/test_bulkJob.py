@@ -30,10 +30,9 @@ import sys
 from datetime import datetime, date
 import time
 from APITest.models.models import (
-    zipORtar, RequestHeader, BulkJobBody, APIRequest, APIData)
+    zipORtar, BulkJobBody, APIRequest, APIData)
 from APITest.utils import (
     SafeConfigParser, sub_commas, md5_of_file, assert_object)
-from APITest.models.models import json_dump_decorator
 from APITest.compat import STDOUT
 import threading
 from multiprocessing import Pool

@@ -1,13 +1,21 @@
 #! -*- coding:utf8 -*-
 
+# from . import * # import nothing
 '''
 from .models import *
+
 : Initialize by models.__init__
+
+'''
+
+'''
 compat 是用来修改 第三方模块的属性
 所以应该放在最前面
 '''
 from .compat import *
+
 from .models import *
+
 from .threadlocal import *
 
 
@@ -22,6 +30,3 @@ import logging
 这是由 import 的优先级顺序决定的，优先 import 本级目录下的文件
 
 '''
-
-__version__ = 1.0
-__author__ = 'Qing Zhang'

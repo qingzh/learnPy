@@ -24,38 +24,26 @@ import json
 import logging
 from APITest.models.models import (APIData, AttributeDict)
 from APITest.utils import assert_header
-from TestCommon.models.const import STDOUT, BLANK
 from APITest.models.campaign import *
 import random
 from APITest.settings import SERVER, USERS, api
-from APITest.utils import assert_header
+from APITest.utils import assert_header, get_log_filename
 from itertools import izip
 import collections
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from APITest.compat import formatter
 from TestCommon.exceptions import UndefinedException
-from datetime import datetime
-
-
-__version__ = 1.0
-__author__ = 'Qing Zhang'
-
 ##########################################################################
 #    log settings
 
 TAG_TYPE = u'计划'
-TIMESTAMP = datetime.now().strftime('%Y%m%d%H%M%S%f')
-LOG_DIR = r'.'
-LOG_FILENAME = '%s/%s_%s.log' % (LOG_DIR, TAG_TYPE, TIMESTAMP)
-
-__loglevel__ = logging.INFO
+LOG_FILENAME = get_log_filename(TAG_TYPE)
 log = logging.getLogger(__name__)
-log.setLevel(__loglevel__)
-STDOUT.setLevel(__loglevel__)
-log.addHandler(STDOUT)
 
+__loglevel__ = logging.DEBUG
 output_file = logging.FileHandler(LOG_FILENAME, 'w')
+log.setLevel(__loglevel__)
 output_file.setLevel(__loglevel__)
 log.addHandler(output_file)
 
@@ -66,21 +54,27 @@ DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 '''
 "campaign": {
-    "getAllCampaignId": APIRequest(method=post, uri='/api/campaign/getAllCampaignID'),
-    "getAllCampaign": APIRequest(method=post, uri='/api/campaign/getAllCampaign'),
-    "getCampaignByCampaignId": APIRequest(method=post, uri='/api/campaign/getCampaignByCampaignId'),
-    "updateCampaign": APIRequest(method=post, uri='/api/campaign/updateCampaign'),
-    "deleteCampaign": APIRequest(method=delete, uri='/api/campaign/deleteCampaign'),
-    "addCampaign": APIRequest(method=post, uri='/api/campaign/addCampaign')
+    "getAllCampaignId": APIRequest(
+        method=post, uri='/api/campaign/getAllCampaignID'),
+    "getAllCampaign": APIRequest(
+        method=post, uri='/api/campaign/getAllCampaign'),
+    "getCampaignByCampaignId": APIRequest(
+        method=post, uri='/api/campaign/getCampaignByCampaignId'),
+    "updateCampaign": APIRequest(
+        method=post, uri='/api/campaign/updateCampaign'),
+    "deleteCampaign": APIRequest(
+        method=delete, uri='/api/campaign/deleteCampaign'),
+    "addCampaign": APIRequest(
+        method=post, uri='/api/campaign/addCampaign')
 }
 '''
 locals().update(api.campaign)
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 # 准备测试数据
 # description 总长
 # 字典里存的是json形式，因为list不能hash
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 campaign_map = AttributeDict(
     budget={
@@ -117,7 +111,7 @@ campaign_map = AttributeDict(
     }
 )
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 
 def parse_update_map(update_map):
@@ -296,7 +290,8 @@ def test_delete_subset(server=SERVER, user=DEFAULT_USER, recover=False):
     assert_header(del_bd.header, 0)
     all_after = _get_all_ids(server, user, recover)
     assert set(all_before.body.campaignIds).difference(
-        set(all_after.body.campaignIds)) == set(del_ids), '%s\n%s\n%s' % (all_before, del_ids, all_after)
+        set(all_after.body.campaignIds)) == set(del_ids), \
+        '%s\n%s\n%s' % (all_before, del_ids, all_after)
 
 
 @formatter
@@ -321,13 +316,15 @@ def test_delete_mixed(server=SERVER, user=DEFAULT_USER, recover=False):
     assert_header(del_bd.header, 1)
     all_set = set(_get_all_ids().body.campaignIds)
     assert all_set.isdisjoint(
-        del_ids + err_ids), 'Partial delettion case failed!\n%s should be deleted!' % all_set.intersection(del_ids + err_ids)
+        del_ids + err_ids), 'Partial delettion case failed!\n'\
+        '%s should be deleted!' % all_set.intersection(del_ids + err_ids)
     assert set(del_bd.body.campaignIds) == set(
-        err_ids), 'Partial deletion case failed!\nExpected failed id: %s\nExact failed id: %s' % (err_ids, del_bd.body.campaignIds)
+        err_ids), 'Partial deletion case failed!\nExpected failed id: %s\n'\
+        'Exact failed id: %s' % (err_ids, del_bd.body.campaignIds)
 
 
-#@formatter
-def test_delete_all(params={}, server=SERVER, user=DEFAULT_USER, recover=False):
+@formatter
+def test_delete_all(server=SERVER, user=DEFAULT_USER, recover=False):
     '''
     删除账户的所有计划
     '''
@@ -336,8 +333,8 @@ def test_delete_all(params={}, server=SERVER, user=DEFAULT_USER, recover=False):
     all_after = _get_all_ids()
     assert_header(del_bd.header, 0)
     assert del_bd.body <= dict(result=0, campaignIds=[])
-    assert all_after.body == dict(
-        campaignIds=[]), 'Content Differ!\nExpected: EMPTY\nActually: %s\n' % (all_after.body)
+    assert all_after.body == dict(campaignIds=[]), 'Content Differ!\n'\
+        'Expected: EMPTY\nActually: %s\n' % (all_after.body)
 
 
 def test_deleteCampaign():
@@ -492,7 +489,8 @@ def test_add_n(n, server=SERVER, user=DEFAULT_USER, recover=False):
 
 
 @formatter
-def test_add_exceed(maxn=MAX_CAMPIGN_AMOUNT, server=SERVER, user=DEFAULT_USER, recover=False):
+def test_add_exceed(maxn=MAX_CAMPIGN_AMOUNT, server=SERVER,
+                    user=DEFAULT_USER, recover=False):
     '''
     测试添加计划后，计划总数超过500
     '''
@@ -500,8 +498,8 @@ def test_add_exceed(maxn=MAX_CAMPIGN_AMOUNT, server=SERVER, user=DEFAULT_USER, r
     n = random.randint(maxn, maxn << 1)
     res = _add_n(n)
     assert_header(res.header, 2)
-    assert {
-        "code": 901204, "message": u"推广计划数量不能超过500个"} in res.header.failures, res.body
+    assert {"code": 901204, "message": u"推广计划数量不能超过500个"
+            } in res.header.failures, res.body
     all_after = _get_all_ids()
     assert all_before.body == all_after.body, '[BEFORE]: %s\n[AFTER]: %s\n' % (
         all_before.body, all_after.body)
@@ -516,7 +514,8 @@ def _delete_all(server=SERVER, user=DEFAULT_USER, recover=False):
     if bd.body.campaignIds:
         del_bd = _delete_list(
             bd.body.campaignIds, server, user, recover)
-        assert 0 == del_bd.body.result, 'Delete all campaigns failed!\n%s' % del_bd.body.campaignIds
+        assert 0 == del_bd.body.result, 'Delete all campaigns failed!\n%s'\
+            % del_bd.body.campaignIds
 
 
 def _delete_list(_list, server=SERVER, user=DEFAULT_USER, recover=False):
@@ -527,7 +526,9 @@ def _delete_list(_list, server=SERVER, user=DEFAULT_USER, recover=False):
     return res
 
 
-def test_campaign_main():
+def test_main():
     test_updateCampaign()
     test_deleteCampaign()
     test_addCampaign()
+
+log.removeHandler(output_file)

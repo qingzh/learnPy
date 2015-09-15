@@ -1,20 +1,17 @@
 # -*- coding:utf-8 -*-
 '''
-针对 附加创意 (NewCreative) 接口的回归测试:
+针对 账户(Account) 接口的回归测试:
 '''
 
-from APITest.models.models import APIData
-from TestCommon.models.const import STDOUT, BLANK
+from APITest.models.models import AttributeDict
+from TestCommon.models.const import BLANK
 from APITest.models.account import *
-from APITest.settings import SERVER, USERS, api, LOG_DIR
-from APITest.utils import assert_header
+from APITest.settings import SERVER, USERS, api
+from APITest.utils import assert_header, get_log_filename
 from APITest.compat import formatter
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from TestCommon import ThreadLocal
-from TestCommon.exceptions import UndefinedException
 import threading
-from datetime import datetime
 import logging
 from TestCommon.utils import gen_chinese_unicode
 import urlparse
@@ -24,16 +21,12 @@ import urlparse
 #    log settings
 
 TAG_TYPE = u'账户'
-TIMESTAMP = datetime.now().strftime('%Y%m%d%H%M%S%f')
-LOG_FILENAME = '%s/%s_%s.log' % (LOG_DIR, TAG_TYPE, TIMESTAMP)
+LOG_FILENAME = get_log_filename(TAG_TYPE)
 
-__loglevel__ = logging.INFO
+__loglevel__ = logging.DEBUG
 log = logging.getLogger(__name__)
-log.setLevel(__loglevel__)
-STDOUT.setLevel(__loglevel__)
-log.addHandler(STDOUT)
-
 output_file = logging.FileHandler(LOG_FILENAME, 'w')
+log.setLevel(__loglevel__)
 output_file.setLevel(__loglevel__)
 log.addHandler(output_file)
 
@@ -50,25 +43,25 @@ DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 '''
 locals().update(api.account)
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 # 准备测试数据
 # description 总长
 # 字典里存的是json形式，因为list不能hash
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 _local_ = threading.local()
 GLOBAL = _local_.__dict__.setdefault('global', {})
 GLOBAL[TAG_TYPE] = {}
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 
 def _compare_dict(a, b):
     for key, value in a.iteritems():
         if value is None:
             continue
-        assert value == b[key], 'Content Differ at key `%s`!\nExpected: %s\nActually: %s\n' % (
-            key, value, b[key])
+        assert value == b[key], 'Content Differ at key `%s`!\n'\
+            'Expected: %s\nActually: %s\n' % (key, value, b[key])
 
 
 def mount(obj):
@@ -85,9 +78,9 @@ def mount(obj):
 def _get_url(domain, tag):
     return urlparse.urljoin(domain, tag)
 
-#---------------------------------------------------------------
+# ---------------------------------------------------------------
 #  测试查询操作 getAccount(.*)
-#---------------------------------------------------------------
+# ---------------------------------------------------------------
 
 
 @formatter
@@ -102,9 +95,9 @@ def test_getAccount(server, user):
     GLOBAL[TAG_TYPE]['output'] = res.body.accountInfoType
 
 
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 #  测试更新操作 updateAccount
-#---------------------------------------------------------------
+# --------------------------------------------------------------
 
 
 def _update_by_dict(server, user, change, expected):
@@ -218,21 +211,23 @@ def test_updateAccount(server, user):
     test_updateAccount_clear_excludeIp(server, user)
 
 
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 #  测试入口
-#-------------------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 
 @mount(api.newCreative)
 def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
     user.get_tag(TAG_TYPE, refresh=True)
-    results = ThreadLocal.get_results()
-    len_before = len(results)
+    # results = ThreadLocal.get_results()
+    # len_before = len(results)
 
     test_getAccount(server, user)
     test_updateAccount(server, user)
     # test_deleteAccount(server, user)
 
-    flag = all(
-        (results[i].status == 'PASS' for i in range(len_before, len(results))))
+    # flag = all((
+    #    results[i].status == 'PASS' for i in range(len_before, len(results))))
     # TODO
+
+log.removeHandler(output_file)

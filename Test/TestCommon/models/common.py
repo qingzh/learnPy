@@ -9,25 +9,12 @@ from .const import *
 from ..exceptions import ReadOnlyAttributeError
 
 __all__ = [
-    'AttributeDict', 'APIAttributeDict', 'CustomProperty',
+    'AttributeDict', 'APIAttributeDict',
     'ReadOnlyObject', 'PersistentAttributeObject',
-    'TestResult', 'SlotsDict', 'AttributeDictWithProperty'
+    'TestResult', 'SlotsDict'
 ]
 
 log = logging.getLogger(__name__)
-
-
-class CustomProperty(property):
-
-    def __init__(self, key):
-        self._property_key = key
-
-    def __get__(self, obj, objtype):
-        # 使用 Class.property 则返回 属性对象本身
-        if obj is None:
-            return self
-        # 对 instance 调用
-        return getattr(obj, self._property_key)
 
 
 class AttributeDict(dict):
@@ -47,22 +34,15 @@ class AttributeDict(dict):
             # Nested AttributeDict object
             # new object should be instance of self.__class__
             # compatible with `property`
-            AttributeDict.__setitem__(self, key, self[key])
+            value = self[key]
+            AttributeDict.__setitem__(self, key, value)
 
     @property
     def __classhook__(self):
-        '''
-        设置成 property
-        如果在 __init__ 里初始化，则重写 __init__ 时也要记得赋值……
-        因为很容易忘记%，所以还是设成 property 吧，(⊙o⊙)
-        '''
         return self.__class__
 
     def __getitem__(self, key):
         # `dict` item first
-        # 这里取不到 item 就去取 attr 可能造成 无限循环
-        # 比如，设置了 abc = CustomProperty('abc)
-        #
         if key in self:
             return super(AttributeDict, self).__getitem__(key)
         return super(AttributeDict, self).__getattribute__(key)
@@ -134,41 +114,6 @@ class AttributeDict(dict):
         d = dict(*args, **kwargs)
         for key in d.iterkeys():
             self.__setitem__(key, d[key])
-
-
-class AttributeDictWithProperty(AttributeDict):
-
-    '''
-    允许设置字典的property
-    property属性通过 __setattribute__ 调用
-    property方法里调用 同样名称的元素 (__item__)
-    '''
-
-    def __setitem__(self, key, value):
-        cls = self.__class__
-        if value == BLANK:
-            # clear item
-            return self.pop(key, BLANK)
-        if isinstance(getattr(cls, key, None), property):
-            getattr(cls, key).__set__(self, value)
-        else:
-            super(AttributeDictWithProperty, self).__setitem__(key, value)
-
-    def __setattr__(self, key, value):
-        """
-        不允许通过 __setattr__ 新增对象属性
-        但是允许通过 __setattr__ 修改对象已有的属性
-        如果需要新增属性，则需要修改 self.__dict__
-        例如：iterkeys, __dict__ 之类
-        """
-        cls = self.__class__
-        if key in dir(cls) or key in self.__dict__:
-            if isinstance(getattr(cls,  key, None), property):
-                getattr(cls,  key).__set__(self, value)
-            else:
-                super(AttributeDictWithProperty, self).__setattr__(key, value)
-        else:
-            self.__setitem__(key, value)
 
 
 class APIAttributeDict(AttributeDict):
@@ -316,6 +261,7 @@ class TestResult(AttributeDict):
         self.id = None
         self.runtime = None  # seconds
         self.function = None
+        self.module = None
         super(TestResult, self).__init__(*args, **kwargs)
 
     def pretty(self, encoding='utf8'):
@@ -324,14 +270,11 @@ class TestResult(AttributeDict):
         | %76s | FAIL |
         '''
         pretty = []
-        lines = [x.strip() for x in (self.description or '').strip().split(
-            '\n') if x.strip()] or ['']
-        pretty.append(' | '.join([
-            _pretty_description(lines[0]),
-            _pretty_status(self.status),
-            _pretty_runtime(self.runtime)]))
+        lines = [x.strip()
+                 for x in (self.description or '').strip().split('\n') if x.strip()] or ['']
+        pretty.append(
+            ' | '.join([_pretty_description(lines[0]), _pretty_status(self.status), _pretty_runtime(self.runtime)]))
         for i in range(1, len(lines)):
-            pretty.append(' | '.join([
-                _pretty_description(lines[i]), _pretty_status(''),
-                _pretty_string('', WIDTH.RUNTIME)]))
+            pretty.append(
+                ' | '.join([_pretty_description(lines[i]), _pretty_status(''), _pretty_string('', WIDTH.RUNTIME)]))
         return '\n'.join(pretty)

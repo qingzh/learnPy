@@ -15,22 +15,27 @@ import time
 from APITest.models.models import AttributeDict, APIData
 from APITest.utils import (
     SafeConfigParser, sub_commas, md5_of_file, assert_object)
-from TestCommon.models.const import STDOUT, BLANK
+from TestCommon.models.const import BLANK
 from APITest.models.campaign import yield_campaignType
 import random
 from APITest.settings import SERVER, USERS, api
 from APITest.models.adgroup import *
-from APITest.utils import assert_header
+from APITest.utils import assert_header, get_log_filename
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from APITest.compat import ThreadLocal, formatter
 from APITest import settings
 
+TAG_TYPE = u'单元'
 
+LOG_FILENAME = get_log_filename(TAG_TYPE)
+
+__loglevel__ = logging.INFO
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
-STDOUT.setLevel(logging.INFO)
-log.addHandler(STDOUT)
+log.setLevel(__loglevel__)
+output_file = logging.FileHandler(LOG_FILENAME, 'w')
+output_file.setLevel(__loglevel__)
+log.addHandler(output_file)
 
 MAX_CAMPIGN_AMOUNT = 500
 MAX_ADGROUP_PER_CAMPAIGN = 2000
