@@ -1,9 +1,16 @@
 # -*- coding:utf-8 -*-
 
-from .models import APIType, AttributeDict
+from .models import APIType, AttributeDict, APIData
 from .const import IDTYPE
 from TestCommon.models.const import BLANK
+from ..compat import is_sequence
 
+
+
+class KeywordId(APIData):
+
+    def __init__(self, keywordIds):
+        self.keywordIds = is_sequence(keywordIds, True)
 
 class KeywordType(APIType):
     __name__ = 'keywordTypes'

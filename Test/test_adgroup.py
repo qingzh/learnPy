@@ -99,17 +99,41 @@ def test_addAdgroup(server, user):
 # 定义测试用例 getAdgroup*
 # ------------------------------------------------------------------------
 
+
 @formatter
-def test_getAdgroupByCampaignId(server, user):
-    ''' 单元：添加单元，选填项全部留空 '''
+def test_getAdgroupIdByCampaignId(server, user):
+    ''' 单元：获取计划ID下的所有单元的数据 '''
+    adgroup = GLOBAL[TAG_TYPE]['input']
     res = getAdgroupByCampaignId(
         header=user, server=server,
-        body=CampaignId(GLOBAL[TAG_TYPE]['input']['adgroupId']))
+        body=CampaignId(adgroup.campaignId))
     assert_header(res.header, STATUS.SUCCESS)
     # FIXME
     # 这里应该是查询数据库，对比数据
     adgroup = res.body.groupAdgroups[0].adgroupTypes[0]
-    GLOBAL[TAG_TYPE]['adgroupId'] = adgroup.adgroupId
+    assert GLOBAL[TAG_TYPE]['input']  >= adgroup
+
+@formatter
+def test_getAdgroupByCampaignId(server, user):
+    ''' 单元：获取计划ID下的所有单元的数据 '''
+    res = getAdgroupByCampaignId(
+        header=user, server=server,
+        body=CampaignId(GLOBAL[TAG_TYPE]['input']['campaignId']))
+    assert_header(res.header, STATUS.SUCCESS)
+    # FIXME
+    # 这里应该是查询数据库，对比数据
+    adgroup = res.body.groupAdgroups[0].adgroupTypes[0]
+    assert GLOBAL[TAG_TYPE]['input']  >= adgroup
+
+@formatter
+def test_getAdgroupByAdgroupId(server, user):
+    ''' 单元：获取单元ID对应的单元数据 '''
+    adgroup = GLOBAL[TAG_TYPE]['input']
+    res = getAdgroupByAdgroupId(
+        header=user, server=server,
+        body=AdgroupId(adgroup.adgroupId))
+    assert_header(res.header, STATUS,SUCCESS)
+    assert adgroup <= res.body.groupAdgroups[0].adgroupTypes[0]
 
 
 def parse_update_map(update_map):

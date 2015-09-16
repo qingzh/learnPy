@@ -46,7 +46,7 @@ def is_sequence(val, convert=False):
     if isinstance(val, collections.Iterable):
         return list(val)
     # not iterable, like `int`, `float`
-    return [val]
+    return [val] if val else list()
 
 
 def len_unicode(s, encoding='utf8'):
