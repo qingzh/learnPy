@@ -6,15 +6,16 @@ import zipfile
 import tarfile
 import requests
 from requests.exceptions import MissingSchema
-import collections
-from ..compat import (SlotsDict,
-                      BLANK, AttributeDict, APIAttributeDict, ReadOnlyObject, PersistentAttributeObject)
+from ..compat import (
+    SlotsDict, is_sequence, BLANK, AttributeDict,
+    APIAttributeDict, ReadOnlyObject, PersistentAttributeObject)
 
 import json
 from functools import partial
 
-__all__ = ['JSONEncoder', 'ReadOnlyAttributeDict', 'PersistentAttributeDict', 'SlotsMeta',
-           '_slots_class', 'APIType', 'APIData', 'zipORtar']
+__all__ = [
+    'JSONEncoder', 'ReadOnlyAttributeDict', 'PersistentAttributeDict',
+    'SlotsMeta', '_slots_class', 'APIType', 'APIData', 'zipORtar']
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -110,7 +111,8 @@ class BulkJobBody(SlotsDict):
     fileController: 9-bit, binary
     '''
 
-    def __init__(self, campaignIds=None, singleFile=None, format=None, variableColumns=None, fileController=None):
+    def __init__(self, campaignIds=None, singleFile=None, format=None,
+                 variableColumns=None, fileController=None):
         self.bulkJobRequestType = SlotsDict(
             campaignIds=campaignIds,
             singleFile=singleFile,
@@ -155,14 +157,15 @@ class APIDataMixin(AttributeDict):
             # clear item
             return self.pop(key, BLANK)
 
-        if isinstance(value, collections.MutableSequence):
+        if is_sequence(value):
             t = value[0] if value else None
         else:
             t = value
         # 这里需要用 value[0].__name__
         # 因为 instance.__name__ 和 class.__name__ 是不一样的
-        if key == 'body'and issubclass(type(t), APIType) and hasattr(t, '__name__'):
-            if t.__name__.endswith('s') and not isinstance(value, collections.MutableSequence):
+        if key == 'body'and issubclass(type(t), APIType
+                                       ) and hasattr(t, '__name__'):
+            if t.__name__.endswith('s') and not is_sequence(value):
                 value = [value]
             super(APIDataMixin, self).__setitem__(key, {t.__name__: value})
         else:
@@ -188,7 +191,8 @@ def response_hook(obj):
     def response_wrapper(response, *args, **kwargs):
         # 2015年8月5日定论，所有返回码都必须是200,
         # status code 在 hook 里统一验证，不再放到单独的Assertion里
-        assert response.status_code == 200, 'Status code must be 200! not "%s"' % response.status_code
+        assert response.status_code == 200, 'Status code must be 200! '\
+            'not "%s"' % response.status_code
         try:
             response._body = obj(response.json())
             response.header = response._body.header
@@ -262,7 +266,8 @@ class APIRequest(Request):
                 res.status_code, res.request.url, res.request.body)
         return res
 
-    def __call__(self, server=None, header=None, body=None, json=None, **kwargs):
+    def __call__(self, server=None, header=None, body=None,
+                 json=None, **kwargs):
         if header is not None:
             json = APIData(header=header, body=body)
         return self.response(json=json, server=server, **kwargs)

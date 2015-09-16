@@ -11,23 +11,21 @@ Type:
 '''
 import json
 import logging
-import time
-from APITest.models.models import AttributeDict, APIData
-from APITest.utils import (
-    SafeConfigParser, sub_commas, md5_of_file, assert_object)
-from TestCommon.models.const import BLANK
-from APITest.models.campaign import yield_campaignType
+from APITest.models.models import AttributeDict
 import random
 from APITest.settings import SERVER, USERS, api
 from APITest.models.adgroup import *
-from APITest.utils import assert_header, get_log_filename
+from APITest.utils import assert_header, get_log_filename, assert_object
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from APITest.compat import ThreadLocal, formatter
-from APITest import settings
+from APITest.compat import ThreadLocal, formatter, gen_chinese_unicode
+from APITest.models.adgroup import *
+import threading
+
+##########################################################################
+#    log settings
 
 TAG_TYPE = u'单元'
-
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.INFO
@@ -40,28 +38,78 @@ log.addHandler(output_file)
 MAX_CAMPIGN_AMOUNT = 500
 MAX_ADGROUP_PER_CAMPAIGN = 2000
 
+##########################################################################
+DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 
 '''
-    "adgroup": {
-        "getAllAdgroupId": APIRequest(method=post, uri='/api/adgroup/getAllAdgroupId'),
-        "getAdgroupIdByCampaignId": APIRequest(method=post, uri='/api/adgroup/getAdgroupIdByCampaignId'),
-        "getAdgroupByCampaignId": APIRequest(method=post, uri='/api/adgroup/getAdgroupByCampaignId'),
-        "getAdgroupByAdgroupId": APIRequest(method=post, uri='/api/adgroup/getAdgroupByAdgroupId'),
-        "addAdgroup": APIRequest(method=post, uri='/api/adgroup/addAdgroup'),
-        "updateAdgroup": APIRequest(method=post, uri='/api/adgroup/updateAdgroup'),
-        "deleteAdgroup": APIRequest(method=delete, uri='/api/adgroup/deleteAdgroup'),
-    }
+"adgroup": {
+    "getAllAdgroupId": APIRequest(
+        method=post, uri='/api/adgroup/getAllAdgroupId'),
+    "getAdgroupIdByCampaignId": APIRequest(
+        method=post, uri='/api/adgroup/getAdgroupIdByCampaignId'),
+    "getAdgroupByCampaignId": APIRequest(
+        method=post, uri='/api/adgroup/getAdgroupByCampaignId'),
+    "getAdgroupByAdgroupId": APIRequest(
+        method=post, uri='/api/adgroup/getAdgroupByAdgroupId'),
+    "addAdgroup": APIRequest(
+        method=post, uri='/api/adgroup/addAdgroup'),
+    "updateAdgroup": APIRequest(
+        method=post, uri='/api/adgroup/updateAdgroup'),
+    "deleteAdgroup": APIRequest(
+        method=delete, uri='/api/adgroup/deleteAdgroup'),
+}
 '''
 locals().update(api.campaign)
 locals().update(api.adgroup)
 
-TAG_TYPE = u'单元'
-# SERVER defined in `settings.py`
-DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
+_local_ = threading.local()
+GLOBAL = _local_.__dict__.setdefault('global', {})
+GLOBAL[TAG_TYPE] = {}
+# ------------------------------------------------------------------------
+# 定义测试用例 addAdgroup
+# ------------------------------------------------------------------------
 
-#-------------------------------------------------------------------------
-#
-#-------------------------------------------------------------------------
+
+def _get_campaignId(server, user, refresh=False):
+    tag = user.get_tag(TAG_TYPE, refresh)
+    tag_dict = ThreadLocal.get_tag_dict((server, user.username), tag)
+    if 'campaignId' not in tag_dict:
+        tag_dict.update(user.add_campaign(server, TAG_TYPE))
+    return tag_dict['campaignId']
+
+
+@formatter
+def test_addAdgroup(server, user):
+    ''' 单元：添加单元，选填项全部留空 '''
+    adgroup = AdgroupType(
+        campaignId=_get_campaignId(server, user),
+        adgroupName=gen_chinese_unicode(30),
+        maxPrice=179.49,
+        adPlatformOS=1,
+    )
+    GLOBAL[TAG_TYPE]['input'] = adgroup
+    res = user.addAdgroup(server=server, body=adgroup)
+    assert_header(res.header, STATUS.SUCCESS)
+    # FIXME
+    # 这里应该是查询数据库，对比数据
+    adgroup.adgroupId = res.body.adgroupTypes[0].adgroupId
+    GLOBAL[TAG_TYPE]['adgroupId'] = adgroup.adgroupId
+
+# ------------------------------------------------------------------------
+# 定义测试用例 getAdgroup*
+# ------------------------------------------------------------------------
+
+@formatter
+def test_getAdgroupByCampaignId(server, user):
+    ''' 单元：添加单元，选填项全部留空 '''
+    res = getAdgroupByCampaignId(
+        header=user, server=server,
+        body=CampaignId(GLOBAL[TAG_TYPE]['input']['adgroupId']))
+    assert_header(res.header, STATUS.SUCCESS)
+    # FIXME
+    # 这里应该是查询数据库，对比数据
+    adgroup = res.body.groupAdgroups[0].adgroupTypes[0]
+    GLOBAL[TAG_TYPE]['adgroupId'] = adgroup.adgroupId
 
 
 def parse_update_map(update_map):

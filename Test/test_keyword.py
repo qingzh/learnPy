@@ -58,16 +58,12 @@ DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
 '''
 locals().update(api.keyword)
 
-# ------------------------------------------------------------------------
-# 准备测试数据
-# description 总长
-# 字典里存的是json形式，因为list不能hash
-# ------------------------------------------------------------------------
-
 _local_ = threading.local()
 GLOBAL = _local_.__dict__.setdefault('global', {})
 GLOBAL[TAG_TYPE] = {}
 
+# ------------------------------------------------------------------------
+# 测试用例
 # ------------------------------------------------------------------------
 
 
@@ -157,6 +153,7 @@ def test_addKeyword(server, user):
     res = addKeyword(
         server=server, header=user, body=keyword)
     assert_header(res.header, STATUS.SUCCESS)
+    # FIXME
     # 这里应该是查询数据库，对比数据
     keyword.keywordId = res.body.keywordTypes[0].keywordId
     GLOBAL[TAG_TYPE]['keywordId'] = keyword.keywordId

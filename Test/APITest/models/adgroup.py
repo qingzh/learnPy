@@ -4,8 +4,11 @@ from TestCommon.models.const import BLANK
 
 MAX_PRICE = 500000
 
+__all__ = [
+    'AdgroupType', 'CampaignId']
 
-class CampaignId(APIData):
+
+class CampaignId(APIType):
     __name__ = 'campaignIds'
 
     def __init__(self, campaignIds=BLANK):
@@ -61,9 +64,9 @@ def yield_adgroupTypes(n):
         yield AdgroupType(
             adgroupName='adgroup_%d' % i,
             maxPrice=(i + 3) % MAX_PRICE / 10.0,
-            negativeWords = ['negative_%d' % i],
-            exactNegativeWords = ['exactNegative_%d' % i],
-            pause = i & 0b1,
-            status = v,  # invalid
-            adPlatformOS = v + 1 if v != 2 else 4
+            negativeWords=['negative_%d' % i],
+            exactNegativeWords=['exactNegative_%d' % i],
+            pause=i & 0b1,
+            status=v,  # invalid
+            adPlatformOS=v + 1 if v != 2 else 4
         )
