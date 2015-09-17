@@ -227,6 +227,11 @@ def _pretty_runtime(f, width=WIDTH.RUNTIME):
     f = float(f)
     return ('{:>%d.2f}' % width).format(f)
 
+API_STATUS_MAP = {
+    API_STATUS.SUCCESS: 'PASS',
+    API_STATUS.FAILURE: 'FAIL',
+    API_STATUS.EXCEPTION: 'ERROR'
+}
 
 class TestResult(AttributeDict):
 
@@ -273,7 +278,11 @@ class TestResult(AttributeDict):
         lines = [x.strip()
                  for x in (self.description or '').strip().split('\n') if x.strip()] or ['']
         pretty.append(
-            ' | '.join([_pretty_description(lines[0]), _pretty_status(self.status), _pretty_runtime(self.runtime)]))
+            ' | '.join([
+                _pretty_description(lines[0]), 
+                _pretty_status(API_STATUS_MAP[self.status]), 
+                _pretty_runtime(self.runtime)
+            ]))
         for i in range(1, len(lines)):
             pretty.append(
                 ' | '.join([_pretty_description(lines[i]), _pretty_status(''), _pretty_string('', WIDTH.RUNTIME)]))

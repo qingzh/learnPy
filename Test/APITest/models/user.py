@@ -110,10 +110,9 @@ class UserObject(AttributeDict):
     def domain(self, server):
         # 可能是变化的，因为这个domain是可以修改的
         # 调用 /api/account/updateAccount即可以修改
-        if '_domain' not in self.__dict__:
-            self.__dict__['_domain'] = self.get_account(
+        self.__dict__['_domain'] = domain = self.get_account(
                 server).accountInfoType.regDomain
-        return self._domain
+        return domain.split(',')[0]
 
     def get_account(self, server):
         data = APIData(header=self, body={"requestData": ["account_all"]})

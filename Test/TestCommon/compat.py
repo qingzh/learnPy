@@ -15,6 +15,7 @@ from functools import update_wrapper
 import logging
 import warnings
 from .models.const import STDOUT
+from .threadlocal import ThreadLocal
 
 __all__ = []
 
@@ -60,14 +61,19 @@ requests.Session.send = send_dec(_original_send)
 1. 修改 Logger.__init__
 2. 修改 getLogger
 '''
+STDOUT.setLevel(ThreadLocal.LOG_LEVEL)
 
-LOG_LEVEL = logging.WARN
-STDOUT.setLevel(LOG_LEVEL)
+'''
+这里还需要动态配置 logLevel
+这里只能保证初始化时候的 level
+如果中途修改了 logLevel， 已经初始化的Logger不起作用……
+'''
 
 
 def logger_dec(func):
     def wrapper(name=None):
         logger = func(name)
+        LOG_LEVEL = ThreadLocal.LOG_LEVEL
         logger.setLevel(LOG_LEVEL)
         if LOG_LEVEL == logging.DEBUG:
             logger.addHandler(STDOUT)

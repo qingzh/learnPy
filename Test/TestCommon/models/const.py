@@ -61,9 +61,9 @@ class API_STATUS(ConstObject):
     '''
     这是 API 传回的 STATUS 枚举表
     '''
-    SUCCESS = 'PASS'
-    FAILED = 'FAIL'
-    EXCEPTION = 'ERROR'
+    SUCCESS = 10
+    FAILURE = 50
+    EXCEPTION = 100
 
 
 class WIDTH(ConstObject):

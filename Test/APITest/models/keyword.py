@@ -6,7 +6,6 @@ from TestCommon.models.const import BLANK
 from ..compat import is_sequence
 
 
-
 class KeywordId(APIData):
 
     def __init__(self, keywordIds):

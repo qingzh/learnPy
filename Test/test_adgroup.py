@@ -9,18 +9,18 @@ Type:
     }
 
 '''
-import json
+
 import logging
-from APITest.models.models import AttributeDict
-import random
 from APITest.settings import SERVER, USERS, api
 from APITest.models.adgroup import *
-from APITest.utils import assert_header, get_log_filename, assert_object
+from APITest.utils import assert_header, get_log_filename
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from APITest.compat import ThreadLocal, formatter, gen_chinese_unicode
 from APITest.models.adgroup import *
 import threading
+from itertools import izip
+from functools import update_wrapper
 
 ##########################################################################
 #    log settings
@@ -28,7 +28,7 @@ import threading
 TAG_TYPE = u'单元'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
-__loglevel__ = logging.INFO
+__loglevel__ = logging.DEBUG
 log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
 output_file = logging.FileHandler(LOG_FILENAME, 'w')
@@ -70,6 +70,19 @@ GLOBAL[TAG_TYPE] = {}
 # ------------------------------------------------------------------------
 
 
+def _compare_dict(exp, act):
+    '''
+    @param exp: expected
+    @param act: actually
+    '''
+    log.debug('Compare object:\nExpected: %s\nActually: %s', exp, act)
+    for key, value in exp.iteritems():
+        if value is None:
+            continue
+        assert value == act[key], 'Content Differ at key `%s`!\n'\
+            'Expected: %s\nActually: %s\n' % (key, value, act[key])
+
+
 def _get_campaignId(server, user, refresh=False):
     tag = user.get_tag(TAG_TYPE, refresh)
     tag_dict = ThreadLocal.get_tag_dict((server, user.username), tag)
@@ -77,282 +90,419 @@ def _get_campaignId(server, user, refresh=False):
         tag_dict.update(user.add_campaign(server, TAG_TYPE))
     return tag_dict['campaignId']
 
+# ------------------------------------------------------------------------
+# 定义测试用例 添加操作
+# ------------------------------------------------------------------------
+
+
+def add_setup(func):
+    def wrapper(server, user):
+        adgroup = func(server, user)
+        adgroup.campaignId = _get_campaignId(server, user)
+        log.debug('addAdgroup: %s', adgroup)
+        res = user.addAdgroup(server=server, body=adgroup)
+        assert_header(res.header, STATUS.SUCCESS)
+        adgroupId = res.body.adgroupTypes[0].adgroupId
+        # FIXME
+        # 这里应该是查询数据库，对比数据
+        ret = user.getAdgroupByAdgroupId(
+            server=server, body=AdgroupId(adgroupId))
+        expected = adgroup.normalize(adgroupId=adgroupId)
+        actually = ret.body.adgroupTypes[0]
+        _compare_dict(expected, actually)
+
+        # TearDown
+        res = deleteAdgroup(
+            server=server, header=user,
+            body=AdgroupId(adgroupId))
+        assert_header(res.header, STATUS.SUCCESS)
+
+    return update_wrapper(wrapper, func)
+
 
 @formatter
-def test_addAdgroup(server, user):
+@add_setup
+def test_add_default(server, user):
     ''' 单元：添加单元，选填项全部留空 '''
-    adgroup = AdgroupType(
-        campaignId=_get_campaignId(server, user),
+    return AdgroupType.random()
+
+
+@formatter
+@add_setup
+def test_add_title30(server, user):
+    ''' 单元：添加单元，标题长度为30 '''
+    return AdgroupType.random(
         adgroupName=gen_chinese_unicode(30),
-        maxPrice=179.49,
-        adPlatformOS=1,
     )
-    GLOBAL[TAG_TYPE]['input'] = adgroup
+
+
+@formatter
+def test_add_title31(server, user):
+    ''' 单元：添加单元，标题长度为31，报错901413 '''
+    campaignId = _get_campaignId(server, user)
+    adgroup = AdgroupType.random(
+        campaignId=campaignId,
+        adgroupName=gen_chinese_unicode(31)
+    )
     res = user.addAdgroup(server=server, body=adgroup)
-    assert_header(res.header, STATUS.SUCCESS)
-    # FIXME
-    # 这里应该是查询数据库，对比数据
-    adgroup.adgroupId = res.body.adgroupTypes[0].adgroupId
-    GLOBAL[TAG_TYPE]['adgroupId'] = adgroup.adgroupId
+    log.debug('Response: %s\n%s', res.content, '- ' * 40)
+    assert_header(res.header, STATUS.FAIL, 901413)
+
+
+@formatter
+def test_add_maxPrice01(server, user):
+    ''' 单元：添加单元，标价小于0.3，报错901421 '''
+    campaignId = _get_campaignId(server, user)
+    adgroup = AdgroupType.random(
+        campaignId=campaignId,
+        maxPrice=0.29999998
+    )
+    res = user.addAdgroup(server=server, body=adgroup)
+    log.debug('Response: %s\n%s', res.content, '- ' * 40)
+    assert_header(res.header, STATUS.FAIL, 901421)
+
+
+@formatter
+@add_setup
+def test_add_maxPrice00(server, user):
+    ''' 单元：添加单元，标价设置为999.99，正常添加 '''
+    campaignId = _get_campaignId(server, user)
+    adgroup = AdgroupType.random(
+        campaignId=campaignId,
+        maxPrice=999.9899998
+    )
+    return adgroup
+
+
+@formatter
+def test_add_maxPrice02(server, user):
+    ''' 单元：添加单元，标价大于999.99，报错901422 '''
+    campaignId = _get_campaignId(server, user)
+    adgroup = AdgroupType.random(
+        campaignId=campaignId,
+        maxPrice=999.991
+    )
+    res = user.addAdgroup(server=server, body=adgroup)
+    log.debug('Response: %s\n%s', res.content, '- ' * 40)
+    assert_header(res.header, STATUS.FAIL, 901422)
+
+
+@formatter
+@add_setup
+def test_add_maxPrice03(server, user):
+    ''' 单元：添加单元，标价为917.14993，应变成.15 实际是.16 '''
+    return AdgroupType.random(maxPrice=917.1499308145)
+
+
+@formatter
+@add_setup
+def test_add_pause00(server, user):
+    ''' 单元：添加单元，暂停状态为True '''
+    return AdgroupType.random(pause=1, maxPrice=10.49)
+
+
+def test_addAdgroup(server, user):
+    test_add_default(server, user)
+    test_add_title30(server, user)
+    test_add_title31(server, user)
+    test_add_maxPrice00(server, user)
+    test_add_maxPrice01(server, user)
+    test_add_maxPrice02(server, user)
+    test_add_maxPrice03(server, user)
+    test_add_pause00(server, user)
+
+# ------------------------------------------------------------------------
+# 定义测试用例 更新操作
+# ------------------------------------------------------------------------
+
+
+def update_setup(func):
+    def wrapper(server, user):
+        campaignId = _get_campaignId(server, user)
+        adgroup = AdgroupType.factory(
+            campaignId=campaignId)
+        log.debug('addAdgroup: %s', adgroup)
+        res = user.addAdgroup(server=server, body=adgroup)
+        adgroupId = res.body.adgroupTypes[0].adgroupId
+        assert_header(res.header, STATUS.SUCCESS)
+
+        # UPDATE
+        changes = func(server, user)
+        changes.adgroupId = adgroupId
+        res = user.updateAdgroup(server=server, body=changes)
+        log.debug('updateAdgroup: %s', res.content)
+        assert_header(res.header)
+
+        # 更新adgroupId, 及其他
+        expected = adgroup[0].normalize(changes)
+        # FIXME
+        # 这里应该是查询数据库，对比数据
+        ret = user.getAdgroupByAdgroupId(
+            server=server, body=AdgroupId(adgroupId))
+        actually = ret.body.adgroupTypes[0]
+        _compare_dict(expected, actually)
+
+        # TearDown
+        res = deleteAdgroup(
+            server=server, header=user,
+            body=AdgroupId(adgroupId))
+        assert_header(res.header, STATUS.SUCCESS)
+
+    return update_wrapper(wrapper, func)
+
+
+@formatter
+@update_setup
+def test_update_default(server, user):
+    ''' 单元：更新单元，选填项全部留空 '''
+    return AdgroupType()
+
+
+@formatter
+@update_setup
+def test_update_title30(server, user):
+    ''' 单元：更新单元，标题长度为30 '''
+    return AdgroupType(
+        adgroupName=gen_chinese_unicode(30),
+        maxPrice=0.3
+    )
+
+
+@formatter
+def test_update_title31(server, user):
+    ''' 单元：更新单元，标题长度为31，报错901413 '''
+    """
+    这个是报错，不需要做后续检查，怎么破！
+    """
+    campaignId = _get_campaignId(server, user)
+    adgroup = AdgroupType.factory(
+        campaignId=campaignId)
+    res = user.addAdgroup(server=server, body=adgroup)
+    adgroupId = res.body.adgroupTypes[0].adgroupId
+    res = user.updateAdgroup(
+        server=server,
+        body=AdgroupType(
+            adgroupId=adgroupId,
+            adgroupName=gen_chinese_unicode(31)
+        ))
+    log.debug('Response: %s\n%s', res.content, '- ' * 40)
+    assert_header(res.header, STATUS.FAIL, 901413)
+    user.deleteAdgroup(server=server, body=AdgroupId(adgroupId))
+
+
+@formatter
+def test_update_maxPrice01(server, user):
+    ''' 单元：更新单元，标价小于0.3，报错901421 '''
+    campaignId = _get_campaignId(server, user)
+    adgroup = AdgroupType.factory(
+        campaignId=campaignId)
+    res = user.addAdgroup(server=server, body=adgroup)
+    adgroupId = res.body.adgroupTypes[0].adgroupId
+    res = user.updateAdgroup(
+        server=server,
+        body=AdgroupType(
+            adgroupId=adgroupId,
+            maxPrice=0.29999998,
+        ))
+    log.debug('Response: %s\n%s', res.content, '- ' * 40)
+    assert_header(res.header, STATUS.FAIL, 901421)
+    user.deleteAdgroup(server=server, body=AdgroupId(adgroupId))
+
+
+@formatter
+@update_setup
+def test_update_maxPrice00(server, user):
+    ''' 单元：更新单元，标价设置为999.99，正常添加 '''
+    return AdgroupType(maxPrice=999.9899998)
+
+
+@formatter
+def test_update_maxPrice02(server, user):
+    ''' 单元：更新单元，标价大于999.99，报错901422 '''
+    campaignId = _get_campaignId(server, user)
+    adgroup = AdgroupType.factory(
+        campaignId=campaignId)
+    res = user.addAdgroup(server=server, body=adgroup)
+    adgroupId = res.body.adgroupTypes[0].adgroupId
+    res = user.updateAdgroup(
+        server=server,
+        body=AdgroupType(
+            adgroupId=adgroupId,
+            maxPrice=999.991
+        ))
+    log.debug('Response: %s\n%s', res.content, '- ' * 40)
+    assert_header(res.header, STATUS.FAIL, 901422)
+
+
+@formatter
+@update_setup
+def test_update_maxPrice03(server, user):
+    ''' 单元：更新单元，标价为917.14993，应变成.15 '''
+    return AdgroupType(maxPrice=917.1499308145)
+
+
+@formatter
+@update_setup
+def test_update_pause00(server, user):
+    ''' 单元：更新单元，暂停状态为True '''
+    return AdgroupType(pause=1)
+
+
+def test_updateAdgroup(server, user):
+    test_update_default(server, user)
+    test_update_title30(server, user)
+    test_update_title31(server, user)
+    test_update_maxPrice00(server, user)
+    test_update_maxPrice01(server, user)
+    test_update_maxPrice02(server, user)
+    test_update_maxPrice03(server, user)
+    test_update_pause00(server, user)
 
 # ------------------------------------------------------------------------
 # 定义测试用例 getAdgroup*
 # ------------------------------------------------------------------------
 
 
+class AdgroupFactory(object):
+
+    def __init__(self, amount=1, tearDown=True):
+        self.amount = amount
+        self.tearDown = tearDown
+
+    def _setup(self, server, user):
+        self.campaignId = campaignId = _get_campaignId(server, user, True)
+        amount = self.amount
+        self.raw_factory = factory = AdgroupType.factory(campaignId, amount)
+        log.debug('Add Adgroup to campaignId: %s', campaignId)
+        log.debug('Adgroups: %s\n%s', factory, '- ' * 40)
+        self.response = res = user.addAdgroup(
+            server=server, body=factory)
+        assert_header(res.header, STATUS.SUCCESS)
+        ret = res.body.adgroupTypes
+        assert len(ret) == amount, '_add_factory: length of adgroups'\
+            ' differ: %s != %s' % (len(ret), amount)
+        # 返回的是 由低到高 排序的 !
+        self.factory = list(x.normalize(adgroupId=y.adgroupId)
+                            for x, y in izip(factory, ret))
+
+    def _teardown(self, server, user):
+        ''' delete item in self.factory '''
+        res = deleteAdgroup(
+            server=server, header=user,
+            body=AdgroupId(x.adgroupId for x in self.factory))
+        assert_header(res.header, STATUS.SUCCESS)
+
+    def __call__(self, func):
+        def wrapper(server, user, **kwargs):
+            self._setup(server, user)
+            kwargs.update(factory=self.factory)
+            ret = func(server, user, **kwargs)
+            if self.tearDown:
+                self._teardown(server, user)
+            return ret
+        return update_wrapper(wrapper, func)
+
+
 @formatter
-def test_getAdgroupIdByCampaignId(server, user):
-    ''' 单元：获取计划ID下的所有单元的数据 '''
-    adgroup = GLOBAL[TAG_TYPE]['input']
-    res = getAdgroupByCampaignId(
+# formatter 放在最外层，否则无法记录setup/teardown失败的用例
+@AdgroupFactory(3)
+def test_getAdgroupIdByCampaignId(server, user, factory):
+    ''' 单元：获取计划ID下的所有单元ID '''
+    adgroups = factory
+    log.debug('Preparation: %s', adgroups)
+    campaignId = adgroups[0].campaignId
+    res = getAdgroupIdByCampaignId(
         header=user, server=server,
-        body=CampaignId(adgroup.campaignId))
+        body=CampaignId(campaignId))
     assert_header(res.header, STATUS.SUCCESS)
     # FIXME
     # 这里应该是查询数据库，对比数据
-    adgroup = res.body.groupAdgroups[0].adgroupTypes[0]
-    assert GLOBAL[TAG_TYPE]['input']  >= adgroup
+    campaignAdgroupIds = res.body.campaignAdgroupIds[0]
+    assert campaignAdgroupIds.campaignId == campaignId
+    expected = [x.adgroupId for x in adgroups]
+    actually = campaignAdgroupIds.adgroupIds
+    assert set(expected) == set(actually), 'AdgrupIds Differ!\n'\
+        'Expected: %s\nActually: %s' % (expected, actually)
+
 
 @formatter
-def test_getAdgroupByCampaignId(server, user):
+@AdgroupFactory(7)
+def test_getAdgroupByCampaignId(server, user, factory):
     ''' 单元：获取计划ID下的所有单元的数据 '''
+    adgroups = factory
+    log.debug('Preparation: %s', adgroups)
+    campaignId = adgroups[0].campaignId
     res = getAdgroupByCampaignId(
         header=user, server=server,
-        body=CampaignId(GLOBAL[TAG_TYPE]['input']['campaignId']))
+        body=CampaignId(campaignId))
     assert_header(res.header, STATUS.SUCCESS)
     # FIXME
     # 这里应该是查询数据库，对比数据
-    adgroup = res.body.groupAdgroups[0].adgroupTypes[0]
-    assert GLOBAL[TAG_TYPE]['input']  >= adgroup
+    campaignAdgroups = res.body.campaignAdgroups[0]
+    assert campaignAdgroups.campaignId == campaignId
+    expected = sorted(adgroups, key=lambda x: x.adgroupId)
+    actually = sorted(campaignAdgroups.adgroupTypes, key=lambda x: x.adgroupId)
+    for _exp, _act in izip(expected, actually):
+        _compare_dict(_exp, _act)
+
 
 @formatter
-def test_getAdgroupByAdgroupId(server, user):
+@AdgroupFactory(5)
+def test_getAdgroupByAdgroupId(server, user, factory):
     ''' 单元：获取单元ID对应的单元数据 '''
-    adgroup = GLOBAL[TAG_TYPE]['input']
+    adgroups = factory
+    log.debug('Preparation: %s', adgroups)
+    ids = [x.adgroupId for x in adgroups]
     res = getAdgroupByAdgroupId(
         header=user, server=server,
-        body=AdgroupId(adgroup.adgroupId))
-    assert_header(res.header, STATUS,SUCCESS)
-    assert adgroup <= res.body.groupAdgroups[0].adgroupTypes[0]
-
-
-def parse_update_map(update_map):
-    '''
-    @param update_map: dict{
-        key:{
-            old_value: new_value
-        }
-    }
-    @return set_list, new_list
-
-    TODO: deal with nested dict value
-    '''
-    set_list, new_list = [], []
-    for key, value_map in update_map.iteritems():
-        for set_value, new_value in value_map.iteritems():
-            set_list.append({key: json.loads(set_value)})
-            new_list.append({key: json.loads(new_value)})
-    return set_list, new_list
-
-
-def test_delete_all(params={}, server=SERVER, user=DEFAULT_USER, recover=False):
-    '''
-    删除所有计划
-    '''
-    get_bd = getAllCampaignID(server=server, header=user)
-    del_bd = deleteCampaign(server=server, header=user, body=get_bd.body)
-    all_bd = getAllCampaignID(server=server, header=user)
-    assert 0 == del_bd.body.result
-    assert [] == all_bd.body.campaignIds
-
-
-def test_delete_subset(server=SERVER, user=DEFAULT_USER, recover=False):
-    get_bd = getAllCampaignID(server=server, header=user)
-    n = len(get_bd.body.campaignIds)
-    if n == 0:
-        n = random.randint(1, MAX_CAMPIGN_AMOUNT)
-        add_bd = _add_ncampaign(n)
-        campaignIds = map(lambda x: x.get('campaignId'),
-                          add_bd.body.campaignTypes)
-    else:
-        campaignIds = get_bd.body.campaignIds
-    del_ids = random.sample(campaignIds, random.randint(1, n))
-    del_bd = doRequest(deleteCampaign, body={'campaignIds': del_ids})
-    assert_success(del_bd)
-    all_ids = getAllCampaignID(server=server, header=user).body.campaignIds
-    assert [] == filter(lambda x: x in all_ids, del_ids)
-
-
-def test_delete_mixed(server=SERVER, user=DEFAULT_USER, recover=False):
-    get_bd = getAllCampaignID(server=server, header=user)
-    n = len(get_bd.body.campaignIds)
-    if n == 0:
-        n = random.randint(1, MAX_CAMPIGN_AMOUNT)
-        add_bd = _add_ncampaign(n)
-        campaignIds = map(lambda x: x.get('campaignId'),
-                          add_bd.body.campaignTypes)
-    else:
-        campaignIds = get_bd.body.campaignIds
-    del_ids = sorted(random.sample(campaignIds, random.randint(1, n)))
-    invalid_ids = [del_ids[0] - i for i in xrange(random.randint(1, n))]
-    del_bd = doRequest(
-        deleteCampaign, body={'campaignIds': del_ids + invalid_ids})
-    assert_partial(del_bd)
-    all_ids = getAllCampaignID(server=server, header=user).body.campaignIds
-    print del_ids, all_ids
-    assert [] == filter(lambda x: x in all_ids, del_ids)
-    print del_bd.body.campaignIds, invalid_ids
-    assert sorted(del_bd.body.campaignIds) == sorted(invalid_ids)
-
-
-def test_add_ncampaign(n, server=SERVER, user=DEFAULT_USER, recover=False):
-    _delete_all()
-    add_bd = _add_ncampaign(n)
-    campaignIds = map(lambda x: x.get('campaignId'),
-                      add_bd.body.campaignTypes)
-    get_bd = doRequest(
-        getCampaignByCampaignId, body=dict(campaignIds=campaignIds))
-    all_bd = doRequest(getAllCampaign)
-    assert_object(add_bd.body, get_bd.body)
-    assert_object(add_bd.body, all_bd)
-
-
-def test_add_exceed(server=SERVER, user=DEFAULT_USER, recover=False):
-    '''
-    插入计划数超过500, status_code=404
-    '''
-    all_before = getAllCampaignID(server=server, header=user)
-    n = random.randint(MAX_CAMPIGN_AMOUNT, MAX_CAMPIGN_AMOUNT << 1)
-    add_bd = _add_ncampaign(n)
-    assert_failure(add_bd)
-    all_after = getAllCampaignID(server=server, header=user)
-    assert all_before.body == all_after.body, '[BEFORE]: %s\n[AFTER]: %s\n' % (
-        all_before.body.json(), all_after.body.json())
-
-
-def _get_campaignId(server, user, refresh=False):
-    tag = user.get_tag(TAG_TYPE, refresh)
-    tag_dict = ThreadLocal.get_tag_dict((server, user.username), tag)
-    if 'campaignId' not in tag_dict:
-        tag_dict.update(user.add_campaign(server, TAG_TYPE))
-    return tag_dict['campaignId']
-
-
-@formatter
-def test_getAllAdgroupId(server, user):
-    " 获取账户下所有单元ID "
-    # return campaignAdgroupIds:[]
-    res = getAllAdgroupId(server=server, header=user)
+        body=AdgroupId(ids))
     assert_header(res.header, STATUS.SUCCESS)
+    # Assertion
+    expected = sorted(adgroups, key=lambda x: x.adgroupId)
+    actually = sorted(res.body.adgroupTypes, key=lambda x: x.adgroupId)
+    for _exp, _act in izip(expected, actually):
+        _compare_dict(_exp, _act)
 
 
+def test_getAdgroup(server, user):
+    test_getAdgroupIdByCampaignId(server, user)
+    test_getAdgroupByAdgroupId(server, user)
+    test_getAdgroupByCampaignId(server, user)
+
+
+# ------------------------------------------------------------------------
+# 定义测试用例 getAdgroup*
+# ------------------------------------------------------------------------
 @formatter
-def test_getAdgroupIdByCampaignId(server=SERVER, user=DEFAULT_USER, recover=False):
-    " 获取计划ID下所有单元ID "
-    # return campaignAdgroupIds:[int,]
+def test_delete00(server, user):
+    ''' 单元：删除10个单元 '''
+    obj = AdgroupFactory(10)
+    obj._setup(server, user)
+    ids = set(x.adgroupId for x in obj.factory)
     res = getAdgroupIdByCampaignId(
-        server=server, header=user, body={'campaignIds': user.get_campaignIds(server)})
-    assert_header(res.header, STATUS.SUCCESS)
+        header=user, server=server,
+        body=CampaignId(obj.campaignId))
+    log.debug('getAdgroup: %s', res.content)
+    assert ids == set(
+        res.body.campaignAdgroupIds[0].adgroupIds), 'Add Adgroup Failed!'
+    obj._teardown(server, user)
+    res = getAdgroupIdByCampaignId(
+        header=user, server=server,
+        body=CampaignId(obj.campaignId))
+    new_ids = res.body.campaignAdgroupIds[0].adgroupIds
+    assert len(new_ids) == 0, 'Delete Failed: %s' % (new_ids)
 
 
-@formatter
-def test_getAdgroupByCampaignId(server=SERVER, user=DEFAULT_USER, recover=False):
-    " 获取计划ID下所有单元ID "
-    # return campaignAdgroups:[dict,]
-    res = getAdgroupByCampaignId(
-        server=server, header=user, body={'campaignIds': user.get_campaignIds(server)})
-    assert_header(res.header, STATUS.SUCCESS)
+def test_deleteAdgroup(server, user):
+    test_delete00(server, user)
+
+# ------------------------------------------------------------------------
+# 测试入口 main()
+# ------------------------------------------------------------------------
 
 
-def _add_ncampaign(n, server=SERVER, user=DEFAULT_USER, recover=False):
-    '''
-    添加1个合法计划
-    '''
-    campaigns = list(yield_campaignType(n))
-    add_bd = doRequest(addCampaign, body={'campaignTypes': campaigns})
-    # all campaigns would be return both failed or successed
-    # except len(campaigns) > 500
-    if n <= MAX_CAMPIGN_AMOUNT:
-        # campaigns should be subset of `ccampaignTypes`
-        assert campaigns <= add_bd.body.campaignTypes
-    else:
-        assert add_bd.header.status == 2
-        assert 901204 in add_bd.codes
-    return add_bd
-
-
-def _get_campaign_ids(n, server=SERVER, user=DEFAULT_USER, recover=False):
-    campaign_ids = getAllCampaignID(
-        server=server, header=user).body.campaignIds
-    fixed = n - len(campaign_ids)
-    if fixed > 0:
-        campaign_ids.extend(_add_ncampaign(fixed).body.campaignIds)
-    return random.sample(campaign_ids, n)
-
-
-def _del_adgroups_by_campaignId(ids):
-    adgroup_ids = list(_get_all_adgroup_ids(ids))
-    del_bd = _del_adgroup_ids(adgroup_ids, ids)
-
-
-def _add_adgroup(campaignId, n):
-    adgroups = list(yield_adgroupTypes(n))
-    map(lambda x: x.update(campaignId=campaignId), adgroups)
-    add_bd = doRequest(addAdgroup, body={'adgroupTypes': adgroups})
-    return add_bd
-    if n < MAX_ADGROUP_PER_CAMPAIGN:
-        assert add_bd.body == addAdgroup.body
-    else:
-        assert add_bd.header.status == 2
-        assert 901204 in add_bd.codes
-
-
-def _get_all_adgroup_ids(ids=None):
-    if ids is None:
-        get_bd = doRequest(getAllAdgroupId)
-    else:
-        id_list = list(ids) if isinstance(ids, (list, tuple, set)) else [ids]
-        get_bd = doRequest(
-            getAdgroupIdByCampaignId, dict(campaignIds=id_list))
-    all_ids = set()
-    for d in get_bd.body.campaignAdgroupIds:
-        all_ids.update(d.get('adgroupIds'))
-    return all_ids
-
-
-def _del_adgroup_ids(id_list, campaignId=None):
-    ids_before = _get_all_adgroup_ids(campaignId)
-    del_bd = doRequest(deleteAdgroup, dict(adgroupIds=id_list))
-    id_deleted = ids_before.intersection(id_list)
-    # assert delete failed
-    id_failed = set(id_list).difference(id_deleted)
-    if id_failed:
-        assert set(del_bd.body.adgroupIds) == id_failed
-    # assert delete success
-    ids_after = _get_all_adgroup_ids(campaignId)
-    assert ids_after.isdisjoint(id_deleted)
-    return del_bd
-
-
-def _delete_all(params={}, server=SERVER, user=DEFAULT_USER, recover=False):
-    '''
-    清空账户计划
-    '''
-    get_bd = doRequest(getAllCampaignID, params)
-    if get_bd.body.campaignIds:
-        del_bd = doRequest(deleteCampaign, get_bd.body)
-    else:
-        return get_bd
-    return get_bd, del_bd
-
-
-def test_main():
-    test_add_ncampaign(1)
-    test_delete_subset()
-    test_add_ncampaign(random.randint(1, MAX_CAMPIGN_AMOUNT))
-    test_delete_all()
-    test_add_ncampaign(MAX_CAMPIGN_AMOUNT)
-    test_delete_subset()
-    test_delete_mixed()
-    test_add_exceed()
-    test_delete_all()
+def test_main(server=SERVER, user=DEFAULT_USER):
+    test_addAdgroup(server, user)
+    test_updateAdgroup(server, user)
+    test_getAdgroup(server, user)
+    test_deleteAdgroup(server, user)

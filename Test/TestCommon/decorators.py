@@ -33,9 +33,9 @@ def formatter(func):
         try:
             ret = func(*args, **kwargs)
             tr.status = API_STATUS.SUCCESS
-            tr.message = API_STATUS.SUCCESS
+            tr.message = 'SUCCESS'
         except AssertionError as e:
-            tr.status = API_STATUS.FAILED
+            tr.status = API_STATUS.FAILURE
             tr.message = e.message
         except UndefinedException as e:
             tr.status = None

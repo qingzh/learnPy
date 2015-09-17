@@ -3,6 +3,7 @@
 from threading import local as threading_local
 from collections import defaultdict
 from .models.const import WIDTH, API_STATUS
+import logging
 
 __all__ = ['ThreadLocal']
 # --------------------------------------------------------------------------
@@ -26,6 +27,7 @@ def format_time(f):
 
 
 class Local(threading_local):
+    LOG_LEVEL = logging.WARN
 
     @property
     def results(self):
@@ -66,15 +68,32 @@ class Local(threading_local):
     def print_results(self):
         results = self.results
         for i in results:
-            print '-' * 100
+            print self.SEPERATOR_LINE
             print i.pretty()
         else:
-            print '-' * 100
+            print self.SEPERATOR_LINE
         succeed = sum((x.status == API_STATUS.SUCCESS for x in results))
         print ('{:>%ds} : {:<d}' % WIDTH.DESCRIPTION).format(
             'SUCCESS', succeed)
         print ('{:>%ds} : {:<d}' % WIDTH.DESCRIPTION).format(
             'FAILED', len(results) - succeed)
+
+    SEPERATOR_LINE = '-' * 90
+
+    def print_details(self, t=API_STATUS.FAILURE):
+        results = self.results
+        total = 0
+        for i in results:
+            if i.status < t:
+                continue
+            total += 1
+            print self.SEPERATOR_LINE
+            print i.description
+            print '.' * 80
+            print i.message
+        else:
+            print self.SEPERATOR_LINE
+        print 'Total: %d' % total
 
     def format_with_ruby(self):
         results = self.results
@@ -82,7 +101,7 @@ class Local(threading_local):
         strlist = []
         failtotal = errtotal = 0
         for idx, r in enumerate(results):
-            if r.status == API_STATUS.FAILED:
+            if r.status == API_STATUS.FAILURE:
                 prefix = 'compare fail!'
                 failtotal = failtotal + 1
             elif r.status == API_STATUS.EXCEPTION:

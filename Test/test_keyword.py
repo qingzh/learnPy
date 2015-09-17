@@ -2,8 +2,7 @@
 '''
 针对 附加创意 (NewCreative) 接口的回归测试:
 '''
-from APITest.models.models import (APIData, AttributeDict)
-from TestCommon.models.const import BLANK
+from APITest.models.models import APIData
 from APITest.compat import formatter, mount
 from APITest.models.keyword import *
 from APITest.settings import SERVER, USERS, api

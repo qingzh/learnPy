@@ -163,16 +163,29 @@ class APIDataMixin(AttributeDict):
             t = value
         # 这里需要用 value[0].__name__
         # 因为 instance.__name__ 和 class.__name__ 是不一样的
-        if key == 'body'and issubclass(type(t), APIType
-                                       ) and hasattr(t, '__name__'):
+        if key == 'body'and isinstance(t, NamedMixin) \
+                and hasattr(t, '__name__'):
             if t.__name__.endswith('s') and not is_sequence(value):
+                # 防止 dict 类型变成 dict.keys() ...
                 value = [value]
             super(APIDataMixin, self).__setitem__(key, {t.__name__: value})
         else:
             super(APIDataMixin, self).__setitem__(key, value)
 
 
-class APIType(APIDataMixin):
+class NamedMixin(object):
+
+    ''' 用于拼装 TypeName 
+    例如: 
+    >>> body=AdgroupType
+    adgroupTypes:[AdgroupType]
+    >>> body=[AdgroupType,AdgroupType]
+    adgroupTypes: [AdgroupType, AdgroupType]
+    '''
+    pass
+
+
+class APIType(APIDataMixin, NamedMixin):
 
     '''
     turn `apiType` to json string:

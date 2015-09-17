@@ -16,6 +16,8 @@ from .models.const import STATUS
 from .settings import LOG_DIR
 from datetime import datetime
 import os
+from .compat import is_sequence
+
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +54,7 @@ def get_log_filename(tag, suffix=None):
     return os.path.join(p, '%s_%s.log' %(tag, suffix))
 
 
-def assert_header(header, status=STATUS.SUCCESS):
+def assert_header(header, status=STATUS.SUCCESS, code=None):
     '''
     { "header": {
         "status": 0,
@@ -62,6 +64,11 @@ def assert_header(header, status=STATUS.SUCCESS):
     '''
     assert header.status == status and header.desc == header_dict[
         status], 'Header: %s' % header
+    if status != STATUS.SUCCESS and code:
+        expected = set(is_sequence(code, True))
+        actually = set(x.code for x in header.failures)
+        assert expected.issubset(actually), 'Error code differ!\n'\
+            'Expected: %s\nActtully: %s' % (expected, actually)
 
 
 def write_file(generator, filename, size=BLOCK_SIZE, mode='wb'):

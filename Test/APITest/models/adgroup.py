@@ -1,5 +1,5 @@
 # -*- coding:utf-8 -*-s
-from .models import APIType, APIData, AttributeDict
+from .models import APIType, APIData
 from TestCommon.models.const import BLANK
 from ..compat import is_sequence
 import random
@@ -9,7 +9,7 @@ from datetime import datetime
 MAX_PRICE = 500000
 
 __all__ = [
-    'AdgroupType', 'CampaignId']
+    'AdgroupType', 'CampaignId', 'AdgroupId']
 
 
 class CampaignId(APIData):
@@ -51,6 +51,7 @@ class AdgroupType(APIType):
     def __init__(self, adgroupId=BLANK, campaignId=BLANK, adgroupName=BLANK,
                  maxPrice=BLANK, negativeWords=BLANK, exactNegativeWords=BLANK,
                  pause=BLANK, status=BLANK, adPlatformOS=BLANK):
+        # 可不可以用SlotsDict ??
         # long
         self.adgroupId = adgroupId
         # long
@@ -71,32 +72,59 @@ class AdgroupType(APIType):
         self.adPlatformOS = adPlatformOS
 
     @classmethod
-    def random(cls, campaignId, adgroupName=None):
-        return cls(
+    def factory(cls, campaignId, amount=1):
+        '''
+        批量造 adgroupType
+        @param amount: 整数，所需的单元总数
+        @param campaignId: 所属计划ID
+        '''
+        # integer
+        price = int(datetime.now().strftime('%I%M')) % 1000
+        return list(cls(
             campaignId=campaignId,
-            adgroupName=adgroupName or gen_chinese_unicode(30),
-            maxPrice=int(datetime.now().strftime('%y%m%d')) + random.random(),
+            adgroupName=gen_chinese_unicode(30),
+            maxPrice=price + random.random(),
+            adPlatformOS=random.choice(PLATFORM),
+        ) for i in range(amount))
+
+    @classmethod
+    def random(cls, **kwargs):
+        price = int(datetime.now().strftime('%I%M')) % 1000
+        default = dict(
+            adgroupName=gen_chinese_unicode(30),
+            maxPrice=price + random.random(),
             adPlatformOS=random.choice(PLATFORM),
         )
+        default.update(kwargs)
+        return cls(**default)
 
-    def normalize(self, obj=None):
-        obj = obj or self
+    def normalize(self, obj=None, **kwargs):
+        if self._is_parent_instance(obj) or kwargs:
+            obj = AdgroupType(**(obj or kwargs))
+        else:
+            obj = obj or self
+
         negativeWords = obj.get(
             'negativeWords', self.get('negativeWords', ['']))
+        if '$' in negativeWords:
+            negativeWords = ['']
         exactNegativeWords = obj.get(
             'exactNegativeWords', self.get('exactNegativeWords', ['']))
-        D = AdgroupType(
-            adgroupId=self.adgroupId,
+        if '$' in exactNegativeWords:
+            exactNegativeWords = ['']
+        price = round(float(obj.get('maxPrice', self.maxPrice)), 2)
+
+        return AdgroupType(
+            adgroupId=self.get('adgroupId', obj.get('adgroupId', None)),
             campaignId=self.campaignId,
             adgroupName=obj.get('adgroupName', self.adgroupName),
-            maxPrice=round(float(obj.get('maxPrice', self.maxPrice)), 2),
-            negativeWords=negativeWords if '$' not in negativeWords else [''],
-            exactNegativeWords=exactNegativeWords if '$' not in exactNegativeWords else [
-                ''],
+            maxPrice=price,
+            negativeWords=negativeWords,
+            exactNegativeWords=exactNegativeWords,
             pause=obj.get('pause', self.get('pause', False)),
             adPlatformOS=obj.get('adPlatformOS', self.adPlatformOS)
         )
-        return D
+
 
 def yield_adgroupTypes(n):
     for i in xrange(n):
