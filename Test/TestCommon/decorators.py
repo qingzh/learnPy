@@ -28,7 +28,7 @@ def formatter(func):
         return func
 
     def wrapper(*args, **kwargs):
-        tr = TestResult(description=func.func_doc)
+        tr = TestResult(description=func.func_doc.strip())
         ret, begin = None, clock()
         try:
             ret = func(*args, **kwargs)
@@ -36,10 +36,10 @@ def formatter(func):
             tr.message = 'SUCCESS'
         except AssertionError as e:
             tr.status = API_STATUS.FAILURE
-            tr.message = e.message
+            tr.message = str(e)
         except UndefinedException as e:
             tr.status = None
-            tr.message = e.message
+            tr.message = str(e)
         except Exception as e:
             tr.status = API_STATUS.EXCEPTION
             tr.message = traceback.format_exc()

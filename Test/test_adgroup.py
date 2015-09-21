@@ -11,7 +11,7 @@ Type:
 '''
 
 import logging
-from APITest.settings import SERVER, USERS, api
+from APITest.settings import api
 from APITest.models.adgroup import *
 from APITest.utils import assert_header, get_log_filename
 from APITest.models.user import UserObject
@@ -31,15 +31,13 @@ LOG_FILENAME = get_log_filename(TAG_TYPE)
 __loglevel__ = logging.DEBUG
 log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
-output_file = logging.FileHandler(LOG_FILENAME, 'w')
-output_file.setLevel(__loglevel__)
-log.addHandler(output_file)
 
 MAX_CAMPIGN_AMOUNT = 500
 MAX_ADGROUP_PER_CAMPAIGN = 2000
 
 ##########################################################################
-DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
+SERVER = ThreadLocal.SERVER
+USER = ThreadLocal.USER
 
 '''
 "adgroup": {
@@ -501,8 +499,15 @@ def test_deleteAdgroup(server, user):
 # ------------------------------------------------------------------------
 
 
-def test_main(server=SERVER, user=DEFAULT_USER):
+def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER):
+    output_file = logging.FileHandler(LOG_FILENAME, 'w')
+    output_file.setLevel(__loglevel__)
+    log.addHandler(output_file)
+
+    log.addHandler(output_file)
     test_addAdgroup(server, user)
     test_updateAdgroup(server, user)
     test_getAdgroup(server, user)
     test_deleteAdgroup(server, user)
+
+    log.removeHandler(output_file)

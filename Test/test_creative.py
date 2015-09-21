@@ -4,7 +4,7 @@
 '''
 from APITest.models.models import (APIData, AttributeDict)
 from APITest.models.creative import *
-from APITest.settings import SERVER, USERS, api
+from APITest.settings import api
 from APITest.utils import assert_header
 import collections
 from APITest.models.user import UserObject
@@ -14,7 +14,7 @@ import logging
 from TestCommon.utils import gen_chinese_unicode
 import urlparse
 from APITest.compat import (
-    formatter, mount, suite, ThreadLocal, BLANK, UndefinedException)
+    formatter, mount, suite, ThreadLocal, UndefinedException)
 from APITest.utils import get_log_filename
 ##########################################################################
 #    log settings
@@ -24,14 +24,11 @@ LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.DEBUG
 log = logging.getLogger(__name__)
-output_file = logging.FileHandler(LOG_FILENAME, 'w')
 log.setLevel(__loglevel__)
-output_file.setLevel(__loglevel__)
-log.addHandler(output_file)
 
 ##########################################################################
-
-DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
+SERVER = ThreadLocal.SERVER
+USER = ThreadLocal.USER
 
 
 '''
@@ -422,10 +419,14 @@ def test_deleteSublink(server, user):
 
 
 @mount(api.newCreative)
-def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
+def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
     '''
     主测试入口
     '''
+    output_file = logging.FileHandler(LOG_FILENAME, 'w')
+    output_file.setLevel(__loglevel__)
+    log.addHandler(output_file)
+
     user.get_tag(TAG_TYPE, refresh=True)
     results = ThreadLocal.get_results()
     len_before = len(results)
@@ -439,4 +440,4 @@ def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
         (results[i].status == 'PASS' for i in range(len_before, len(results))))
     flag and recover and _delete_adgroupId(server, user)
 
-log.removeHandler(output_file)
+    log.removeHandler(output_file)

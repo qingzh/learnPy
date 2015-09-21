@@ -1,7 +1,14 @@
 #! -*- coding:utf8 -*-
+''' TODO
+设计一个TextFixure
+绑定 服务器，用户名 <不可变>
+动态返回 campaignId, adgroupId, sublink等等（动态调用接口获取参数...)
+去查数据库！！
 
-from ..settings import api, SERVER
+'''
+from ..settings import api, SERVERS
 from .models import AttributeDict, APIData
+from ..compat import AttributeDictWithProperty
 import uuid
 from ..utils import assert_header
 from const import STATUS
@@ -10,11 +17,12 @@ import logging
 
 log = logging.getLogger(__name__)
 
+__all__ = ["UserObject"]
 
 MAX_BUDGET = 500000 - 10
 
 
-class UserObject(AttributeDict):
+class UserObject(AttributeDictWithProperty):
 
     '''
     需要记录为这次测试建立的计划ID，单元ID
@@ -40,6 +48,8 @@ class UserObject(AttributeDict):
     def __getattr__(self, key):
         # api 如果改变了也能同步改变
         log.debug('__getattr__: %s', key)
+        if key in self.__dict__:
+            return self.__dict__[key]
         try:
             return super(UserObject, self).__getattr__(key)
         except Exception as e:
@@ -104,8 +114,8 @@ class UserObject(AttributeDict):
     def uid(self):
         if '_uid' not in self.__dict__:
             self.__dict__['_uid'] = self.get_account(
-                SERVER.PRODUCTION).accountInfoType.userId
-        return self._uid
+                SERVERS.PRODUCTION).accountInfoType.userId
+        return self.__dict__['_uid']
 
     def domain(self, server):
         # 可能是变化的，因为这个domain是可以修改的

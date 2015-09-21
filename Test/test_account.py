@@ -6,9 +6,9 @@
 from APITest.models.models import AttributeDict
 from TestCommon.models.const import BLANK
 from APITest.models.account import *
-from APITest.settings import SERVER, USERS, api
+from APITest.settings import api
 from APITest.utils import assert_header, get_log_filename
-from APITest.compat import formatter
+from APITest.compat import formatter, ThreadLocal
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 import threading
@@ -25,14 +25,11 @@ LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.DEBUG
 log = logging.getLogger(__name__)
-output_file = logging.FileHandler(LOG_FILENAME, 'w')
 log.setLevel(__loglevel__)
-output_file.setLevel(__loglevel__)
-log.addHandler(output_file)
 
 ##########################################################################
-
-DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
+SERVER = ThreadLocal.SERVER
+USER = ThreadLocal.USER
 
 
 '''
@@ -216,8 +213,15 @@ def test_updateAccount(server, user):
 # ------------------------------------------------------------------------
 
 
-@mount(api.newCreative)
-def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
+#@mount(api.newCreative)
+def test_main(server=None, user=None, recover=True):
+    server = server or ThreadLocal.SERVER
+    user = user or ThreadLocal.USER
+    output_file = logging.FileHandler(LOG_FILENAME, 'w')
+    output_file.setLevel(__loglevel__)
+    log.addHandler(output_file)
+    
+    log.debug('server: %s; usr: %s', server, user.username)
     user.get_tag(TAG_TYPE, refresh=True)
     # results = ThreadLocal.get_results()
     # len_before = len(results)
@@ -229,5 +233,4 @@ def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
     # flag = all((
     #    results[i].status == 'PASS' for i in range(len_before, len(results))))
     # TODO
-
-log.removeHandler(output_file)
+    log.removeHandler(output_file)

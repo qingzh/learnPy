@@ -11,7 +11,7 @@ from ..exceptions import ReadOnlyAttributeError
 __all__ = [
     'AttributeDict', 'APIAttributeDict',
     'ReadOnlyObject', 'PersistentAttributeObject',
-    'TestResult', 'SlotsDict'
+    'TestResult', 'SlotsDict', 'AttributeDictWithProperty',
 ]
 
 log = logging.getLogger(__name__)
@@ -114,6 +114,39 @@ class AttributeDict(dict):
         d = dict(*args, **kwargs)
         for key in d.iterkeys():
             self.__setitem__(key, d[key])
+
+
+class AttributeDictWithProperty(AttributeDict):
+
+    '''
+    允许设置字典的property
+    property属性通过 __setattribute__ 调用
+    property方法里调用 同样名称的元素 (__item__)
+    '''
+    """ FIXME
+    还要定制 __getitem__ __getattr__
+    """
+    def __init__(self, *args, **kwargs):
+        """
+        take care of nested dict
+        """
+        super(AttributeDict, self).__init__(*args, **kwargs)
+        for key in self.keys():
+            # Nested AttributeDict object
+            # new object should be instance of self.__class__
+
+            # compatible with `property`
+            value = self[key]
+            if isinstance(getattr(self.__class__, key, None), property):
+                getattr(self.__class__, key).__set__(self, value)
+            else:
+                AttributeDictWithProperty.__setitem__(self, key, value)
+
+    def __setitem__(self, key, value):
+        if value == BLANK:
+            # clear item
+            return self.pop(key, BLANK)
+        super(AttributeDictWithProperty, self).__setitem__(key, value)
 
 
 class APIAttributeDict(AttributeDict):

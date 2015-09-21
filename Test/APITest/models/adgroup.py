@@ -51,14 +51,15 @@ class AdgroupType(APIType):
     def __init__(self, adgroupId=BLANK, campaignId=BLANK, adgroupName=BLANK,
                  maxPrice=BLANK, negativeWords=BLANK, exactNegativeWords=BLANK,
                  pause=BLANK, status=BLANK, adPlatformOS=BLANK):
+        # 分库分表： tb_unit_0003 (wolongtest)
         # 可不可以用SlotsDict ??
-        # long
+        # long, 对应SQL: id
         self.adgroupId = adgroupId
-        # long
+        # long, SQL: planid
         self.campaignId = campaignId
-        # string, len<=30, i.e. 15 Chineses
+        # string, len<=30, i.e. 15个中文; SQL: name
         self.adgroupName = adgroupName
-        # double, [0.3, 500000]
+        # double, [0.3, 500000]; SQL: bid/100.0 存的是`分`
         self.maxPrice = maxPrice
         # string[]
         self.negativeWords = negativeWords

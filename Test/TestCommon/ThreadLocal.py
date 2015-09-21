@@ -27,7 +27,13 @@ def format_time(f):
 
 
 class Local(threading_local):
-    LOG_LEVEL = logging.WARN
+    LOG_LEVEL = logging.DEBUG
+
+    def lock(self):
+        self._lock = True
+
+    def unlock(self):
+        self._lock = False
 
     @property
     def results(self):
@@ -61,6 +67,9 @@ class Local(threading_local):
 
     def get_results(self):
         return self.results
+
+    def new_results(self):
+        self.__dict__['results'] = []
 
     def clear_results(self):
         self.__dict__['results'][:] = []

@@ -26,13 +26,13 @@ from APITest.models.models import (APIData, AttributeDict)
 from APITest.utils import assert_header
 from APITest.models.campaign import *
 import random
-from APITest.settings import SERVER, USERS, api
+from APITest.settings import api
 from APITest.utils import assert_header, get_log_filename
 from itertools import izip
 import collections
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from APITest.compat import formatter
+from APITest.compat import formatter, ThreadLocal
 from TestCommon.exceptions import UndefinedException
 ##########################################################################
 #    log settings
@@ -42,15 +42,13 @@ LOG_FILENAME = get_log_filename(TAG_TYPE)
 log = logging.getLogger(__name__)
 
 __loglevel__ = logging.DEBUG
-output_file = logging.FileHandler(LOG_FILENAME, 'w')
 log.setLevel(__loglevel__)
-output_file.setLevel(__loglevel__)
-log.addHandler(output_file)
 
 ##########################################################################
 
 MAX_CAMPIGN_AMOUNT = 500
-DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
+SERVER = ThreadLocal.SERVER
+USER = ThreadLocal.USER
 
 '''
 "campaign": {
@@ -131,7 +129,7 @@ def parse_update_map(update_map):
     return set_list, new_list
 
 
-def doRequest(req, body={}, server=SERVER, user=DEFAULT_USER, recover=False):
+def doRequest(req, body, server, user, recover=False):
     '''
     req.response(**kwargs)
     @return requests.Response
@@ -145,13 +143,13 @@ def doRequest(req, body={}, server=SERVER, user=DEFAULT_USER, recover=False):
     return res
 
 
-def _update(body):
+def _update(body, server, user):
     if not isinstance(body, collections.Sequence):
         body = [body]
-    return doRequest(updateCampaign, {"campaignTypes": body})
+    return doRequest(updateCampaign, {"campaignTypes": body}, server, user)
 
 
-def test_updateCampaign():
+def test_updateCampaign(server, user):
     '''
     POST /cpc/campaign/updateCampaign
 
@@ -188,18 +186,18 @@ def test_updateCampaign():
         无效属性
     '''
     # Negative Cases:
-    test_update_with_existing_name()
+    test_update_with_existing_name(server, user)
 
     # Positive Cases
-    test_update_with_duplicate_campaigns()
-    test_update_using_map(campaign_map)
+    test_update_with_duplicate_campaigns(server, user)
+    test_update_using_map(campaign_map, server, user)
 
 
 # @suite(SUITE.API)  # 动态分配测试集合
 
 
 @formatter
-def test_update_with_existing_name():
+def test_update_with_existing_name(server, user):
     ''' 使用已存在的计划名称更新计划，预期结果："计划名称已存在" '''
     '''
     计划名称重复
@@ -207,16 +205,16 @@ def test_update_with_existing_name():
     2. 和该账户其他计划的名字相同
     3. 和其他账户的计划名字相同
     '''
-    data = _get_n(1).body.campaignTypes[0]
+    data = _get_n(1, server, user).body.campaignTypes[0]
     # FAILURE case: update with same campaignName
-    res = _update(data)
+    res = _update(data, server, user)
     assert_header(res.header, 2)
     assert {"code": 901203,
             "message": u"计划名称已存在"} in res.header.failures, res.header
 
-    data_list = _get_n(2).body.campaignTypes
+    data_list = _get_n(2, server, user).body.campaignTypes
     data_list[0].campaignName = data_list[1].campaignName
-    res = _update(data_list[0:1])
+    res = _update(data_list[0:1], server, user)
     # assert res.status_code == 404
     assert_header(res.header, 2)
     assert {"code": 901203,
@@ -224,39 +222,39 @@ def test_update_with_existing_name():
 
 
 @formatter
-def test_update_with_duplicate_campaigns():
+def test_update_with_duplicate_campaigns(server, user):
     '''
     测试更新列表中存在重复的计划id，预期结果：以最后的更新值为准
     '''
-    data = _get_n(1).body.campaignTypes[0]
+    data = _get_n(1, server, user).body.campaignTypes[0]
     _list = list(yield_campaignType(3))
     map(lambda x: x.update(campaignId=data.campaignId), _list)
-    res = _update(_list)
-    new_data = _get_by_ids(data.campaignId).body.campaignTypes[0]
+    res = _update(_list, server, user)
+    new_data = _get_by_ids(data.campaignId, server, user).body.campaignTypes[0]
     assert new_data >= _list[-1]
 
 
 @formatter
-def test_update_using_map(campaign_map):
+def test_update_using_map(campaign_map, server, user):
     '''
     依次更新计划的属性，预期结果：全部更新成功
     '''
 
-    _delete_all()
+    _delete_all(server, user)
     set_list, new_list = parse_update_map(campaign_map)
-    update_list = _get_n(len(set_list)).body.campaignTypes
+    update_list = _get_n(len(set_list), server, user).body.campaignTypes
     # REMOVE campaignName to get rid of `901203` error
     # 删除 campaignName，否则 相同的campaignName会引发异常
     for item, _set in izip(update_list, set_list):
         item.update(_set)
         item.pop('campaignName')
 
-    res = _update(update_list)
+    res = _update(update_list, server, user)
     assert_header(res.header, 0)
     update_bd = res.body.campaignTypes
     assert update_bd <= update_list
 
-    res = _get_by_ids([x.campaignId for x in update_list])
+    res = _get_by_ids([x.campaignId for x in update_list], server, user)
     assert_header(res.header, 0)
     after = res.body.campaignTypes
     for item, _new in izip(after, new_list):
@@ -279,14 +277,14 @@ def _shuffle(_list):
 
 
 @formatter
-def test_delete_subset(server=SERVER, user=DEFAULT_USER, recover=False):
+def test_delete_subset(server, user, recover=False):
     '''
     删除部分现存计划，不含不存在的计划
     '''
-    all_before = _get_nlt_n_ids(10)
+    all_before = _get_nlt_n_ids(10, server, user)
     # get subset of existing ids
     del_ids = _subset(all_before.body.campaignIds)
-    del_bd = _delete_list(del_ids)
+    del_bd = _delete_list(del_ids, server, user)
     assert_header(del_bd.header, 0)
     all_after = _get_all_ids(server, user, recover)
     assert set(all_before.body.campaignIds).difference(
@@ -295,7 +293,7 @@ def test_delete_subset(server=SERVER, user=DEFAULT_USER, recover=False):
 
 
 @formatter
-def test_delete_cross_user():
+def test_delete_cross_user(server, user):
     '''
     删除其他用户的计划，暂未实现
     '''
@@ -303,16 +301,16 @@ def test_delete_cross_user():
 
 
 @formatter
-def test_delete_mixed(server=SERVER, user=DEFAULT_USER, recover=False):
+def test_delete_mixed(server, user, recover=False):
     '''
     删除部分现存计划，包含不存在的计划ID
     预期结果：存在的计划ID成功删除，不存在的计划ID返回
     '''
-    ids_before = _get_nlt_n_ids(10).body.campaignIds
+    ids_before = _get_nlt_n_ids(10, server, user).body.campaignIds
     min_id = min(ids_before)
     del_ids = _subset(ids_before)
     err_ids = _subset(range(min_id - len(ids_before), min_id))
-    del_bd = _delete_list(_shuffle(del_ids + err_ids))
+    del_bd = _delete_list(_shuffle(del_ids + err_ids), server, user)
     assert_header(del_bd.header, 1)
     all_set = set(_get_all_ids().body.campaignIds)
     assert all_set.isdisjoint(
@@ -324,26 +322,26 @@ def test_delete_mixed(server=SERVER, user=DEFAULT_USER, recover=False):
 
 
 @formatter
-def test_delete_all(server=SERVER, user=DEFAULT_USER, recover=False):
+def test_delete_all(server, user, recover=False):
     '''
     删除账户的所有计划
     '''
-    all_before = _get_nlt_n_ids(10)
-    del_bd = _delete_list(all_before.body.campaignIds)
-    all_after = _get_all_ids()
+    all_before = _get_nlt_n_ids(10, server, user)
+    del_bd = _delete_list(all_before.body.campaignIds, server, user)
+    all_after = _get_all_ids(server, user)
     assert_header(del_bd.header, 0)
     assert del_bd.body <= dict(result=0, campaignIds=[])
     assert all_after.body == dict(campaignIds=[]), 'Content Differ!\n'\
         'Expected: EMPTY\nActually: %s\n' % (all_after.body)
 
 
-def test_deleteCampaign():
-    test_delete_subset()
-    test_delete_mixed()
-    test_delete_all()
+def test_deleteCampaign(server, user):
+    test_delete_subset(server, user)
+    test_delete_mixed(server, user)
+    test_delete_all(server, user)
 
 
-def _get_nlt_n_ids(n, server=SERVER, user=DEFAULT_USER, recover=False):
+def _get_nlt_n_ids(n, server, user, recover=False):
     '''
     get not less than `n` ids
     @return : list of campaign ids
@@ -351,17 +349,17 @@ def _get_nlt_n_ids(n, server=SERVER, user=DEFAULT_USER, recover=False):
     如果已经存在超过(或等于)n个计划，则直接返回
     否则添加至 n 个计划
     '''
-    get_bd = _get_all_ids()
+    get_bd = _get_all_ids(server, user)
     if n <= len(get_bd.body.campaignIds):
         return get_bd
-    bd = _add_n(n - len(get_bd.body.campaignIds))
+    bd = _add_n(n - len(get_bd.body.campaignIds), server, user)
     _bd = json.loads(bd.request.body, object_hook=AttributeDict)
     assert_header(bd.header, 0)
     assert _bd.body <= bd.body
     return _get_all_ids()
 
 
-def _get_all_ids(server=SERVER, user=DEFAULT_USER, recover=False):
+def _get_all_ids(server, user, recover=False):
     '''
     get all campaignIds
     this request should be always `success` except network issues
@@ -373,16 +371,17 @@ def _get_all_ids(server=SERVER, user=DEFAULT_USER, recover=False):
     return res
 
 
-def _get_by_ids(ids, server=SERVER, user=DEFAULT_USER, recover=False):
+def _get_by_ids(ids, server, user, recover=False):
     '''
     @return: requests.Response object
     '''
     if not isinstance(ids, collections.Sequence):
         ids = [ids]
-    return doRequest(getCampaignByCampaignId, {'campaignIds': ids})
+    return doRequest(getCampaignByCampaignId, {'campaignIds': ids},
+                     server, user)
 
 
-def _get_n(n, server=SERVER, user=DEFAULT_USER, recover=False):
+def _get_n(n, server, user, recover=False):
     '''
     get `n` campaigns by random
     @return : list of campaigns
@@ -391,10 +390,10 @@ def _get_n(n, server=SERVER, user=DEFAULT_USER, recover=False):
     否则添加至 n 个计划
     '''
     bd = _get_nlt_n_ids(n, server, user, recover)
-    return _get_by_ids(_subset(bd.body.campaignIds, n))
+    return _get_by_ids(_subset(bd.body.campaignIds, n), server, user)
 
 
-def _get_all(server=SERVER, user=DEFAULT_USER, recover=False):
+def _get_all(server, user, recover=False):
     '''
     get all campaigns
     '''
@@ -404,7 +403,7 @@ def _get_all(server=SERVER, user=DEFAULT_USER, recover=False):
     return res
 
 
-def _add_n(n, server=SERVER, user=DEFAULT_USER, recover=False):
+def _add_n(n, server, user, recover=False):
     '''
     添加 n 个计划，不管成功与否，意即不做任何assertion
     输入：n
@@ -417,51 +416,52 @@ def _add_n(n, server=SERVER, user=DEFAULT_USER, recover=False):
     return res
 
 
-def _add_list(campaign_list, server=SERVER, user=DEFAULT_USER, recover=False):
+def _add_list(campaign_list, server, user, recover=False):
     '''
     添加 campaigns; 如果超过500个则全部失败
     @param campaign_list: list of new campaigns
     '''
-    res = doRequest(addCampaign, body={'campaignTypes': campaign_list})
+    res = doRequest(addCampaign, body={'campaignTypes': campaign_list},
+                    server=server, user=user)
     return res
 
 
-def test_addCampaign():
+def test_addCampaign(server, user):
     # SUCCESS cases
-    test_add_n(1)
-    test_add_n(random.randrange(2, MAX_CAMPIGN_AMOUNT))
-    test_add_n(MAX_CAMPIGN_AMOUNT)
+    test_add_n(1, server, user)
+    test_add_n(random.randrange(2, MAX_CAMPIGN_AMOUNT), server, user)
+    test_add_n(MAX_CAMPIGN_AMOUNT, server, user)
     # FAILURE cases
-    test_add_exceed(MAX_CAMPIGN_AMOUNT)
-    test_add_duplicate()
+    test_add_exceed(MAX_CAMPIGN_AMOUNT, server, user)
+    test_add_duplicate(server, user)
     # TODO: 目前添加的计划里只要包含1个重复case就是失败的
-    test_add_mixed()
+    test_add_mixed(server, user)
 
 
 @formatter
-def test_add_duplicate():
+def test_add_duplicate(server, user):
     '''
     新增的计划名称已存在，期望返回：报错
     '''
-    _delete_all()
-    bd = _get_n(1)
-    res = _add_list(bd.body.campaignTypes)
+    _delete_all(server, user)
+    bd = _get_n(1, server, user)
+    res = _add_list(bd.body.campaignTypes, server, user)
     assert_header(res.header, 2)
     assert {"code": 901203,
             "message": u"计划名称已存在"} in res.header.failures, res.header
 
 
 @formatter
-def test_add_mixed():
+def test_add_mixed(server, user):
     '''
     批量插入，部分计划名称已存在
     '''
     # TODO 可能计划数满了，意即 inexistence < 1
-    _delete_all()
-    ids = _get_nlt_n_ids(10).body.campaignIds
-    existing = _get_by_ids(_subset(ids)).body.campaignTypes
+    _delete_all(server, user)
+    ids = _get_nlt_n_ids(10, server, user).body.campaignIds
+    existing = _get_by_ids(_subset(ids), server, user).body.campaignTypes
     inexistence = list(yield_campaignType(10))
-    res = _add_list(_shuffle(existing + inexistence))
+    res = _add_list(_shuffle(existing + inexistence), server, user)
     # assert res.status_code == 404
     assert_header(res.header, 2)
     assert {"code": 901203,
@@ -469,43 +469,43 @@ def test_add_mixed():
 
 
 @formatter
-def test_add_n(n, server=SERVER, user=DEFAULT_USER, recover=False):
+def test_add_n(n, server, user, recover=False):
     '''
     测试添加n个计划，不包括总数溢出
     '''
     # Clean Up
-    _delete_all()
+    _delete_all(server, user)
     data = list(yield_campaignType(n))
-    add_bd = _add_list(data)
+    add_bd = _add_list(data, server, user)
     assert_header(add_bd.header, STATUS.SUCCESS)
     # Compare items in order:
     # TODO: sort if return list not in order
     for req_bd, res_bd in izip(data, add_bd.body.campaignTypes):
         assert res_bd >= req_bd
-    all_campaigns = _get_all()
+    all_campaigns = _get_all(server, user)
     func = lambda y: sorted(y.body.campaignTypes, key=lambda x: x.campaignId)
     for add_value, get_value in izip(func(add_bd), func(all_campaigns)):
         assert add_value <= get_value
 
 
 @formatter
-def test_add_exceed(maxn=MAX_CAMPIGN_AMOUNT, server=SERVER,
-                    user=DEFAULT_USER, recover=False):
+def test_add_exceed(maxn, server,
+                    user, recover=False):
     '''
     测试添加计划后，计划总数超过500
     '''
-    all_before = _get_all_ids()
+    all_before = _get_all_ids(server, user)
     n = random.randint(maxn, maxn << 1)
-    res = _add_n(n)
+    res = _add_n(n, server, user)
     assert_header(res.header, 2)
     assert {"code": 901204, "message": u"推广计划数量不能超过500个"
             } in res.header.failures, res.body
-    all_after = _get_all_ids()
+    all_after = _get_all_ids(server, user)
     assert all_before.body == all_after.body, '[BEFORE]: %s\n[AFTER]: %s\n' % (
         all_before.body, all_after.body)
 
 
-def _delete_all(server=SERVER, user=DEFAULT_USER, recover=False):
+def _delete_all(server, user, recover=False):
     '''
     删除所有计划
     body.result: 0 全部成功，1 部分失败，2 全部失败
@@ -518,7 +518,7 @@ def _delete_all(server=SERVER, user=DEFAULT_USER, recover=False):
             % del_bd.body.campaignIds
 
 
-def _delete_list(_list, server=SERVER, user=DEFAULT_USER, recover=False):
+def _delete_list(_list, server, user, recover=False):
     if not isinstance(_list, collections.Sequence):
         _list = [_list]
     res = doRequest(
@@ -526,9 +526,17 @@ def _delete_list(_list, server=SERVER, user=DEFAULT_USER, recover=False):
     return res
 
 
-def test_main():
-    test_updateCampaign()
-    test_deleteCampaign()
-    test_addCampaign()
+def test_main(server=None, user=None):
+    server = server or ThreadLocal.SERVER
+    user = user or ThreadLocal.USER
 
-log.removeHandler(output_file)
+    output_file = logging.FileHandler(LOG_FILENAME, 'w')
+    output_file.setLevel(__loglevel__)
+    log.addHandler(output_file)
+    log.debug('server: %s; user: %s', server, user.username)
+
+    test_updateCampaign(server, user)
+    test_deleteCampaign(server, user)
+    test_addCampaign(server, user)
+
+    log.removeHandler(output_file)

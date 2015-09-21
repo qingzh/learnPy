@@ -3,14 +3,13 @@
 针对 附加创意 (NewCreative) 接口的回归测试:
 '''
 from APITest.models.models import APIData
-from APITest.compat import formatter, mount
+from APITest.compat import formatter, mount, ThreadLocal
 from APITest.models.keyword import *
-from APITest.settings import SERVER, USERS, api
+from APITest.settings import api
 from APITest.utils import assert_header, get_log_filename
 import collections
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from APITest.compat import ThreadLocal
 from TestCommon.exceptions import UndefinedException
 import threading
 import logging
@@ -25,13 +24,10 @@ LOG_FILENAME = get_log_filename(TAG_TYPE)
 __loglevel__ = logging.INFO
 log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
-output_file = logging.FileHandler(LOG_FILENAME, 'w')
-output_file.setLevel(__loglevel__)
-log.addHandler(output_file)
 
 ##########################################################################
-
-DEFAULT_USER = UserObject(**USERS.get('wolongtest'))
+SERVER = ThreadLocal.SERVER
+USER = ThreadLocal.USER
 
 '''
 "keyword": {
@@ -508,7 +504,11 @@ def test_deleteKeyword(server, user):
 
 
 @mount(api.newCreative)
-def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
+def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
+    output_file = logging.FileHandler(LOG_FILENAME, 'w')
+    output_file.setLevel(__loglevel__)
+    log.addHandler(output_file)
+
     user.get_tag(TAG_TYPE, refresh=True)
     results = ThreadLocal.get_results()
     len_before = len(results)
@@ -522,4 +522,4 @@ def test_main(server=SERVER, user=DEFAULT_USER, recover=True):
         (results[i].status == 'PASS' for i in range(len_before, len(results))))
     flag and recover and _delete_adgroupId(server, user)
 
-log.removeHandler(output_file)
+    log.removeHandler(output_file)
