@@ -27,6 +27,7 @@ def format_time(f):
 
 
 class Local(threading_local):
+
     LOG_LEVEL = logging.DEBUG
 
     def lock(self):

@@ -4,28 +4,46 @@ Doing REST test takes a lot of time on the `data formats`,
 and  the URIs are simple and well linked.
 
 '''
-from .models import *
 from .compat import *
+from .models import *
 from .utils import *
-from .settings import SERVERS, USERS
-
+from .settings import *
+from datetime import datetime
 
 __title__ = 'APITest'
 __version__ = '1.0.0'
 __author__ = 'Qing Zhang'
 
-ThreadLocal.SERVER = SERVERS.BETA
+__all__ = []
 
 
 def userget(self):
-    return self._user
+    return self.__dict__['user']
 
 
 def userset(self, value):
     if not isinstance(value, UserObject):
         value = UserObject(**value)
-    self._user = value
+    self.__dict__['user'] = value
 
 
-ThreadLocal.__class__.USER = property(userget, userset)
+def timeset(self, value):
+    self.__dict__['create_time'] = value.strftime(self._TIME_FORMAT)
+
+def timeget(self):
+    return self.__dict__['create_time']
+
+def datetimeget(self):
+    return datetime.strptime(
+        self.__dict__['create_time'], self._TIME_FORMAT)
+
+
+ThreadLocalClass = ThreadLocal.__class__
+ThreadLocalClass._TIME_FORMAT = '%Y-%m-%d %H:%M:%S.%f'
+ThreadLocalClass.USER = property(userget, userset)
+ThreadLocalClass.create_time = property(timeget, timeset)
+ThreadLocalClass.datetime = property(datetimeget)
+ThreadLocal.SERVER = SERVERS.BETA
 ThreadLocal.USER = USERS['wolongtest']
+
+LOCKS = set()

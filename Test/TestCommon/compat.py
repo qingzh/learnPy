@@ -75,8 +75,8 @@ def logger_dec(func):
         logger = func(name)
         LOG_LEVEL = ThreadLocal.LOG_LEVEL
         logger.setLevel(LOG_LEVEL)
-        if LOG_LEVEL == logging.DEBUG:
-            logger.addHandler(STDOUT)
+        # if LOG_LEVEL == logging.DEBUG:
+        #    logger.addHandler(STDOUT)
         return logger
     return update_wrapper(wrapper, func)
 

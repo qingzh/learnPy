@@ -212,9 +212,9 @@ def test_updateAccount(server, user):
 #  测试入口
 # ------------------------------------------------------------------------
 
-
 #@mount(api.newCreative)
 def test_main(server=None, user=None, recover=True):
+    print 'test_account:', ThreadLocal.__dict__
     server = server or ThreadLocal.SERVER
     user = user or ThreadLocal.USER
     output_file = logging.FileHandler(LOG_FILENAME, 'w')

@@ -312,7 +312,7 @@ def test_delete_mixed(server, user, recover=False):
     err_ids = _subset(range(min_id - len(ids_before), min_id))
     del_bd = _delete_list(_shuffle(del_ids + err_ids), server, user)
     assert_header(del_bd.header, 1)
-    all_set = set(_get_all_ids().body.campaignIds)
+    all_set = set(_get_all_ids(server, user).body.campaignIds)
     assert all_set.isdisjoint(
         del_ids + err_ids), 'Partial delettion case failed!\n'\
         '%s should be deleted!' % all_set.intersection(del_ids + err_ids)
@@ -356,7 +356,7 @@ def _get_nlt_n_ids(n, server, user, recover=False):
     _bd = json.loads(bd.request.body, object_hook=AttributeDict)
     assert_header(bd.header, 0)
     assert _bd.body <= bd.body
-    return _get_all_ids()
+    return _get_all_ids(server, user)
 
 
 def _get_all_ids(server, user, recover=False):

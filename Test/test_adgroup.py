@@ -504,7 +504,6 @@ def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER):
     output_file.setLevel(__loglevel__)
     log.addHandler(output_file)
 
-    log.addHandler(output_file)
     test_addAdgroup(server, user)
     test_updateAdgroup(server, user)
     test_getAdgroup(server, user)

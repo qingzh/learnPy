@@ -48,10 +48,7 @@ header_dict = {
 
 def get_log_filename(tag, suffix=None):
     suffix = suffix or datetime.now().strftime('%Y%m%d%H%M%S%f')
-    p = os.path.join(LOG_DIR, '..', 'log')
-    if not os.path.exists(p):
-        os.makedirs(p)
-    return os.path.join(p, '%s_%s.log' %(tag, suffix))
+    return os.path.join(LOG_DIR, '%s_%s.log' %(tag, suffix))
 
 
 def assert_header(header, status=STATUS.SUCCESS, code=None):
