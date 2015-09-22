@@ -11,6 +11,7 @@ from APITest.utils import assert_header, get_log_filename
 from APITest.compat import formatter, ThreadLocal
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
+from APITest.models import models
 import threading
 import logging
 from TestCommon.utils import gen_chinese_unicode
@@ -220,6 +221,7 @@ def test_main(server=None, user=None, recover=True):
     output_file = logging.FileHandler(LOG_FILENAME, 'w')
     output_file.setLevel(__loglevel__)
     log.addHandler(output_file)
+    models.log.addHandler(output_file)
     
     log.debug('server: %s; usr: %s', server, user.username)
     user.get_tag(TAG_TYPE, refresh=True)
@@ -233,4 +235,5 @@ def test_main(server=None, user=None, recover=True):
     # flag = all((
     #    results[i].status == 'PASS' for i in range(len_before, len(results))))
     # TODO
+    models.log.removeHandler(output_file)
     log.removeHandler(output_file)

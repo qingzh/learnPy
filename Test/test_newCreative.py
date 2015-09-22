@@ -3,7 +3,7 @@
 针对 附加创意 (NewCreative) 接口的回归测试:
 '''
 
-from APITest.models import image
+from APITest.models import image, models
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from APITest.models.models import APIData, AttributeDict
@@ -23,7 +23,7 @@ import urlparse
 TAG_TYPE = u'附加创意'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
-__loglevel__ = logging.INFO
+__loglevel__ = logging.DEBUG
 log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
 
@@ -503,6 +503,7 @@ def test_sublink(server, user):
 def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
     output_file = logging.FileHandler(LOG_FILENAME, 'w')
     output_file.setLevel(__loglevel__)
+    #models.log.addHandler(output_file)
     log.addHandler(output_file)
 
     user.get_tag(TAG_TYPE, refresh=True)

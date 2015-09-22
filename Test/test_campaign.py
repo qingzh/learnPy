@@ -39,9 +39,9 @@ from TestCommon.exceptions import UndefinedException
 
 TAG_TYPE = u'计划'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
-log = logging.getLogger(__name__)
 
 __loglevel__ = logging.DEBUG
+log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
 
 ##########################################################################

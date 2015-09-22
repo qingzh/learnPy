@@ -47,7 +47,6 @@ class UserObject(AttributeDictWithProperty):
 
     def __getattr__(self, key):
         # api 如果改变了也能同步改变
-        log.debug('__getattr__: %s', key)
         if key in self.__dict__:
             return self.__dict__[key]
         try:

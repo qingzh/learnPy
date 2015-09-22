@@ -21,7 +21,7 @@ import urlparse
 TAG_TYPE = u'关键词'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
-__loglevel__ = logging.INFO
+__loglevel__ = logging.DEBUG
 log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
 

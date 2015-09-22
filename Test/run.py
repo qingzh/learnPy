@@ -8,10 +8,10 @@ require:
 import os.path
 from APITest.compat import ThreadLocal
 import test_account
-#import test_adgroup
-#import test_keyword
-#import test_creative
-#import test_newCreative
+import test_adgroup
+import test_keyword
+import test_creative
+import test_newCreative
 import traceback
 import threading
 import logging
@@ -71,9 +71,9 @@ def get_results(flag):
 
 if __name__ == '__main__':
     show(ThreadLocal)
-    t = threading.Thread(target=main, args=(ThreadLocal.SERVER, ThreadLocal.USER, datetime.now().strftime('%Y%m%d%H%M%S%f')))
+    t = threading.Thread(target=main, args=(
+        ThreadLocal.SERVER, ThreadLocal.USER, datetime.now().strftime('%Y%m%d%H%M%S%f')))
     t.start()
     # ThreadLocal.format_with_ruby()
     # 注意：这里不要使用 u'中文'，直接 '中文' 即可
     logging.info(u'API回归测试')
-
