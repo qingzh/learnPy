@@ -3,7 +3,7 @@
 针对 附加创意 (NewCreative) 接口的回归测试:
 '''
 
-from APITest.models import image, models
+from APITest.models import image
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from APITest.models.models import APIData, AttributeDict
@@ -11,7 +11,7 @@ from APITest.models.newCreative import *
 from APITest.settings import api
 from APITest.utils import assert_header, get_log_filename
 from APITest.compat import (
-    formatter, mount, suite, ThreadLocal, UndefinedException)
+    formatter, mount, suite, log_dec, ThreadLocal, UndefinedException)
 import collections
 import threading
 import logging
@@ -20,7 +20,7 @@ import urlparse
 ##########################################################################
 #    log settings
 
-TAG_TYPE = u'附加创意'
+TAG_TYPE = u'NEWCREATIVE'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.DEBUG
@@ -500,11 +500,8 @@ def test_sublink(server, user):
 
 @suite('api')
 @mount(api.newCreative)
+@log_dec(log, LOG_FILENAME, __loglevel__)
 def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
-    output_file = logging.FileHandler(LOG_FILENAME, 'w')
-    output_file.setLevel(__loglevel__)
-    #models.log.addHandler(output_file)
-    log.addHandler(output_file)
 
     user.get_tag(TAG_TYPE, refresh=True)
     results = ThreadLocal.get_results()
@@ -518,4 +515,3 @@ def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
         (results[i].status == 'PASS' for i in range(len_before, len(results))))
     flag and recover and _delete_adgroupId(server, user)
     
-    log.removeHandler(output_file)

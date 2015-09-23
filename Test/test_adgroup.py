@@ -16,7 +16,8 @@ from APITest.models.adgroup import *
 from APITest.utils import assert_header, get_log_filename
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from APITest.compat import ThreadLocal, formatter, gen_chinese_unicode
+from APITest.compat import (
+    ThreadLocal, formatter, gen_chinese_unicode, log_dec)
 from APITest.models.adgroup import *
 import threading
 from itertools import izip
@@ -25,7 +26,7 @@ from functools import update_wrapper
 ##########################################################################
 #    log settings
 
-TAG_TYPE = u'单元'
+TAG_TYPE = u'ADGROUP'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.DEBUG
@@ -499,14 +500,11 @@ def test_deleteAdgroup(server, user):
 # ------------------------------------------------------------------------
 
 
-def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER):
-    output_file = logging.FileHandler(LOG_FILENAME, 'w')
-    output_file.setLevel(__loglevel__)
-    log.addHandler(output_file)
-
+@log_dec(log, LOG_FILENAME, __loglevel__)
+def test_main(server=None, user=None):
+    server = server or ThreadLocal.SERVER
+    user = user or ThreadLocal.USER
     test_addAdgroup(server, user)
     test_updateAdgroup(server, user)
     test_getAdgroup(server, user)
     test_deleteAdgroup(server, user)
-
-    log.removeHandler(output_file)

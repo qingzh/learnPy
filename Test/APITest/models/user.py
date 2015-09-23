@@ -13,9 +13,6 @@ import uuid
 from ..utils import assert_header
 from const import STATUS
 from functools import partial
-import logging
-
-log = logging.getLogger(__name__)
 
 __all__ = ["UserObject"]
 

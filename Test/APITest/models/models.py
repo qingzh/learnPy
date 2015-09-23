@@ -272,7 +272,7 @@ class APIRequest(Request):
         res = session.send(prepared, stream=stream)
         log.debug(res.request.url)
         log.debug('[REQUEST ] %s' % res.request.body)
-        log.debug('[RESPONSE] %s\n' % res.content)
+        log.debug('[RESPONSE] %s' % res.content)
         # For API, status code should be always `200`
         assert res.status_code == 200, \
             'Expected status `200`, got `{}`.\nURL:{}\nBody:{}\n'.format(

@@ -3,7 +3,7 @@
 针对 附加创意 (NewCreative) 接口的回归测试:
 '''
 from APITest.models.models import APIData
-from APITest.compat import formatter, mount, ThreadLocal
+from APITest.compat import formatter, mount, ThreadLocal, log_dec
 from APITest.models.keyword import *
 from APITest.settings import api
 from APITest.utils import assert_header, get_log_filename
@@ -18,7 +18,7 @@ import urlparse
 ##########################################################################
 #    log settings
 
-TAG_TYPE = u'关键词'
+TAG_TYPE = u'KEYWORD'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.DEBUG
@@ -504,10 +504,10 @@ def test_deleteKeyword(server, user):
 
 
 @mount(api.newCreative)
-def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
-    output_file = logging.FileHandler(LOG_FILENAME, 'w')
-    output_file.setLevel(__loglevel__)
-    log.addHandler(output_file)
+@log_dec(log, LOG_FILENAME, __loglevel__)
+def test_main(server=None, user=None, recover=True):
+    server = server or ThreadLocal.SERVER
+    user = user or ThreadLocal.USER
 
     user.get_tag(TAG_TYPE, refresh=True)
     results = ThreadLocal.get_results()
@@ -522,4 +522,3 @@ def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
         (results[i].status == 'PASS' for i in range(len_before, len(results))))
     flag and recover and _delete_adgroupId(server, user)
 
-    log.removeHandler(output_file)

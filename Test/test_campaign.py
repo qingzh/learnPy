@@ -32,12 +32,12 @@ from itertools import izip
 import collections
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
-from APITest.compat import formatter, ThreadLocal
+from APITest.compat import formatter, ThreadLocal, log_dec
 from TestCommon.exceptions import UndefinedException
 ##########################################################################
 #    log settings
 
-TAG_TYPE = u'计划'
+TAG_TYPE = u'CAMPAIGN'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.DEBUG
@@ -526,17 +526,11 @@ def _delete_list(_list, server, user, recover=False):
     return res
 
 
+@log_dec(log, LOG_FILENAME, __loglevel__)
 def test_main(server=None, user=None):
     server = server or ThreadLocal.SERVER
     user = user or ThreadLocal.USER
 
-    output_file = logging.FileHandler(LOG_FILENAME, 'w')
-    output_file.setLevel(__loglevel__)
-    log.addHandler(output_file)
-    log.debug('server: %s; user: %s', server, user.username)
-
     test_updateCampaign(server, user)
     test_deleteCampaign(server, user)
     test_addCampaign(server, user)
-
-    log.removeHandler(output_file)

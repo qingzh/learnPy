@@ -71,7 +71,7 @@ class AttributeDict(dict):
 
     def __setitem__(self, key, value):
         # Nested AttributeDict object
-        log.debug('Obj: %s\nkey: %s, value: %s\n', type(self), key, value)
+        log.debug('Obj: %s\nkey: %s, value: %s', type(self), key, value)
         # sequence
         if is_sequence(value):
             for idx, item in enumerate(value):

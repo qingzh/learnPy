@@ -14,12 +14,12 @@ import logging
 from TestCommon.utils import gen_chinese_unicode
 import urlparse
 from APITest.compat import (
-    formatter, mount, suite, ThreadLocal, UndefinedException)
+    formatter, mount, suite, log_dec, ThreadLocal, UndefinedException)
 from APITest.utils import get_log_filename
 ##########################################################################
 #    log settings
 
-TAG_TYPE = u'创意'
+TAG_TYPE = u'CREATIVE'
 LOG_FILENAME = get_log_filename(TAG_TYPE)
 
 __loglevel__ = logging.DEBUG
@@ -27,9 +27,6 @@ log = logging.getLogger(__name__)
 log.setLevel(__loglevel__)
 
 ##########################################################################
-SERVER = ThreadLocal.SERVER
-USER = ThreadLocal.USER
-
 
 '''
 "creative": {
@@ -418,15 +415,13 @@ def test_deleteSublink(server, user):
 # ------------------------------------------------------------------------
 
 
-@mount(api.newCreative)
-def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
+@log_dec(log, LOG_FILENAME, __loglevel__)
+def test_main(server=None,  user=None, recover=True):
     '''
     主测试入口
     '''
-    output_file = logging.FileHandler(LOG_FILENAME, 'w')
-    output_file.setLevel(__loglevel__)
-    log.addHandler(output_file)
-
+    server = server or ThreadLocal.SERVER
+    user = user or ThreadLocal.USER
     user.get_tag(TAG_TYPE, refresh=True)
     results = ThreadLocal.get_results()
     len_before = len(results)
@@ -440,4 +435,3 @@ def test_main(server=ThreadLocal.SERVER, user=ThreadLocal.USER, recover=True):
         (results[i].status == 'PASS' for i in range(len_before, len(results))))
     flag and recover and _delete_adgroupId(server, user)
 
-    log.removeHandler(output_file)
