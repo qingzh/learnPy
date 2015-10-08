@@ -2,11 +2,8 @@
 store `constant` value
 '''
 
+from TestCommon.models.const import API_STATUS
 
-class STATUS(object):
-    SUCCESS = 0
-    PARTIAL_FAIL = 1
-    FAIL = 2
 
 class IDTYPE(object):
     CAMPAIGN = 3

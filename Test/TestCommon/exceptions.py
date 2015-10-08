@@ -7,3 +7,6 @@ class UndefinedException(Exception):
 
 class ReadOnlyAttributeError(Exception):
     pass
+
+class DBQueryException(Exception):
+    pass

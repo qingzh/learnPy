@@ -9,7 +9,7 @@ store `const` in common
 import logging
 import sys
 
-__all__ = ('STDOUT', 'BLANK', 'API_STATUS', 'WIDTH')
+__all__ = ('STDOUT', 'BLANK', 'API_STATUS', 'WIDTH', 'STATUS')
 
 STDOUT = logging.StreamHandler(sys.stdout)
 
@@ -61,9 +61,19 @@ class API_STATUS(ConstObject):
     '''
     这是 API 传回的 STATUS 枚举表
     '''
+    SUCCESS = 0
+    PARTIAL_FAIL = 1
+    FAIL = 2
+
+
+class STATUS(ConstObject):
+    '''
+    status of test case
+    '''
     SUCCESS = 10
     FAILURE = 50
     EXCEPTION = 100
+    UNDEFINED = 500
 
 
 class WIDTH(ConstObject):

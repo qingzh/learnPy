@@ -2,7 +2,7 @@
 
 from threading import local as threading_local
 from collections import defaultdict
-from .models.const import WIDTH, API_STATUS
+from .models.const import WIDTH, STATUS
 import logging
 
 __all__ = ['ThreadLocal']
@@ -82,7 +82,7 @@ class Local(threading_local):
             print i.pretty()
         else:
             print self.SEPERATOR_LINE
-        succeed = sum((x.status == API_STATUS.SUCCESS for x in results))
+        succeed = sum((x.status == STATUS.SUCCESS for x in results))
         print ('{:>%ds} : {:<d}' % WIDTH.DESCRIPTION).format(
             'SUCCESS', succeed)
         print ('{:>%ds} : {:<d}' % WIDTH.DESCRIPTION).format(
@@ -90,7 +90,7 @@ class Local(threading_local):
 
     SEPERATOR_LINE = '-' * 90
 
-    def print_details(self, t=API_STATUS.FAILURE):
+    def print_details(self, t=STATUS.FAILURE):
         results = self.results
         total = 0
         for i in results:
@@ -111,10 +111,10 @@ class Local(threading_local):
         strlist = []
         failtotal = errtotal = 0
         for idx, r in enumerate(results):
-            if r.status == API_STATUS.FAILURE:
+            if r.status == STATUS.FAILURE:
                 prefix = 'compare fail!'
                 failtotal = failtotal + 1
-            elif r.status == API_STATUS.EXCEPTION:
+            elif r.status == STATUS.EXCEPTION:
                 prefix = 'error'
                 errtotal = errtotal + 1
             else:

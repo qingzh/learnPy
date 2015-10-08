@@ -18,4 +18,4 @@ __all__ = []
 LOCKS = set()
 
 ThreadLocal.__class__.SERVER = SERVERS.BETA
-ThreadLocal.USER = USERS['wolongtest']
+ThreadLocal.__class__.user = UserObject(**USERS['wolongtest'])

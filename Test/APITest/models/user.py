@@ -7,11 +7,11 @@
 
 '''
 from ..settings import api, SERVERS
-from .models import AttributeDict, APIData
+from .models import APIData
 from ..compat import AttributeDictWithProperty
 import uuid
 from ..utils import assert_header
-from const import STATUS
+from ..compat import API_STATUS as STATUS
 from functools import partial
 
 __all__ = ["UserObject"]
@@ -117,7 +117,7 @@ class UserObject(AttributeDictWithProperty):
         # 可能是变化的，因为这个domain是可以修改的
         # 调用 /api/account/updateAccount即可以修改
         self.__dict__['_domain'] = domain = self.get_account(
-                server).accountInfoType.regDomain
+            server).accountInfoType.regDomain
         return domain.split(',')[0]
 
     def get_account(self, server):
@@ -141,7 +141,9 @@ class UserObject(AttributeDictWithProperty):
         campaign_adgroups = self.get_campaignAdgroupIds(server)
         if not campaign_adgroups['campaignAdgroupIds']:
             return []
-        return reduce(lambda x, y: x + y, (x['adgroupIds']for x in campaign_adgroups['campaignAdgroupIds']))
+        return reduce(
+            lambda x, y: x + y,
+            (x['adgroupIds'] for x in campaign_adgroups['campaignAdgroupIds']))
 
     def get_keywordIds(self, server):
         data = self._gen_adgroupIds(server)
@@ -150,7 +152,9 @@ class UserObject(AttributeDictWithProperty):
         res = api.keyword.getKeywordIdByAdgroupId(server=server, json=data)
         if not res.body['groupKeywordIds']:
             return []
-        return reduce(lambda x, y: x + y, (x['keywordIds']for x in res.body['groupKeywordIds']))
+        return reduce(
+            lambda x, y: x + y,
+            (x['keywordIds']for x in res.body['groupKeywordIds']))
 
     def get_creativeIds(self, server):
         data = self._gen_adgroupIds(server)
@@ -159,7 +163,9 @@ class UserObject(AttributeDictWithProperty):
         res = api.creative.getCreativeIdByAdgroupId(server=server, json=data)
         if not res.body['groupCreativeIds']:
             return []
-        return reduce(lambda x, y: x + y, (x['creativeIds']for x in res.body['groupCreativeIds']))
+        return reduce(
+            lambda x, y: x + y,
+            (x['creativeIds']for x in res.body['groupCreativeIds']))
 
     def _gen_adgroupIds(self, server):
         ids = self.get_adgroupIds(server)
@@ -175,7 +181,9 @@ class UserObject(AttributeDictWithProperty):
             server, json=data)
         if not res.body['groupSublinkIds']:
             return []
-        return reduce(lambda x, y: x + y, (x['sublinkIds']for x in res.body['groupSublinkIds']))
+        return reduce(
+            lambda x, y: x + y,
+            (x['sublinkIds']for x in res.body['groupSublinkIds']))
 
     def get_appIds(self, server):
         data = self._gen_adgroupIds(server)
@@ -185,7 +193,9 @@ class UserObject(AttributeDictWithProperty):
             server, json=data)
         if not res.body['groupAppIds']:
             return []
-        return reduce(lambda x, y: x + y, (x['appIds']for x in res.body['groupAppIds']))
+        return reduce(
+            lambda x, y: x + y,
+            (x['appIds']for x in res.body['groupAppIds']))
 
     def get_phoneIds(self, server):
         data = self._gen_adgroupIds(server)
@@ -195,4 +205,6 @@ class UserObject(AttributeDictWithProperty):
             server, json=data)
         if not res.body['groupPhoneIds']:
             return []
-        return reduce(lambda x, y: x + y, (x['phoneIds']for x in res.body['groupPhoneIds']))
+        return reduce(
+            lambda x, y: x + y,
+            (x['phoneIds']for x in res.body['groupPhoneIds']))

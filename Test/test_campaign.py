@@ -20,20 +20,15 @@ TODO:
   * 测试级联删除  state表
 '''
 
-import json
 import logging
-from APITest.models.models import (APIData, AttributeDict)
-from APITest.utils import assert_header
 from APITest.models.campaign import *
-import random
+from APITest import (
+    ThreadLocal, log_dec, formatter,
+    gen_chinese_unicode, UndefinedException)
+from APITest import API_STATUS as STATUS
 from APITest.settings import api
 from APITest.utils import assert_header, get_log_filename
-from itertools import izip
-import collections
-from APITest.models.user import UserObject
-from APITest.models.const import STATUS
-from APITest.compat import formatter, ThreadLocal, log_dec
-from TestCommon.exceptions import UndefinedException
+from functools import update_wrapper
 ##########################################################################
 #    log settings
 
@@ -69,90 +64,151 @@ USER = ThreadLocal.USER
 locals().update(api.campaign)
 
 # ------------------------------------------------------------------------
-# 准备测试数据
-# description 总长
-# 字典里存的是json形式，因为list不能hash
-# ------------------------------------------------------------------------
-
-campaign_map = AttributeDict(
-    budget={
-        # value_in_request:value_in_response
-        '0': '-1'  # be care of numeric & string
-    },
-    regionTarget={
-        '["所有地域"]': '["所有地域"]'
-    },
-    excludeIp={
-        '["$"]': '[""]'
-    },
-    negativeWords={
-        '["$"]': '[""]'
-    },
-    exactNegativeWords={
-        '["$"]': '[""]'
-    },
-    schedule={
-        '[{"weekDay":0}]': json.dumps([
-            {"endHour": 24, "weekDay": 1, "startHour": 0},
-            {"endHour": 24, "weekDay": 2, "startHour": 0},
-            {"endHour": 24, "weekDay": 3, "startHour": 0},
-            {"endHour": 24, "weekDay": 4, "startHour": 0},
-            {"endHour": 24, "weekDay": 5, "startHour": 0},
-            {"endHour": 24, "weekDay": 6, "startHour": 0},
-            {"endHour": 24, "weekDay": 7, "startHour": 0}])
-    },
-    showProb={
-
-    },
-    pause={
-
-    }
-)
-
-# ------------------------------------------------------------------------
+# @suite(SUITE.API)  # 动态分配测试集合
 
 
-def parse_update_map(update_map):
+class TestCase(object):
+
+    @classmethod
+    def decorator(cls, func):
+        obj = func.im_self
+
+        def wrapper(*args, **kwargs):
+            obj.setUp()
+            func(*args, **kwargs)
+            obj.tearDown()
+        return formatter(update_wrapper(wrapper, func))
+
+    def __init__(self):
+        self._testcases = []
+        for name in dir(self):
+            if name.startswith('test_') is False:
+                continue
+            method = getattr(self, name, None)
+            if method is None:
+                continue
+            setattr(self, name, TestCase.decorator(method))
+            self._testcases.append(name)
+
+    def run(self):
+        for name in self._testcases:
+            method = getattr(self, name, None)
+            if method is None:
+                continue
+            method()
+
+
+class CampaignMixin(TestCase):
+
+    def __init__(self, server=None, user=None, uid=None):
+        super(CampaignMixin, self).__init__()
+        self.server = server or ThreadLocal.SERVER
+        self.user = user or ThreadLocal.user
+        if uid:
+            self.uid = uid
+        else:
+            pass
+            # self.uid = get_uid(user['username'])
+
+    def setUp(self):
+        server, user = self.server, self.user
+        # response.body: {'campaignIds':[...]}
+        ids = user.getAllCampaignId(server=server).body
+        if not ids['campaignIds']:
+            return
+        res = user.deleteCampaign(server=server, body=ids)
+        assert_header(res.header)
+
+    tearDown = setUp
+
+    def run(self):
+        CampaignMixin.tearDown = lambda x: None
+        super(CampaignMixin, self).run()
+        CampaignMixin.tearDown = CampaignMixin.setUp
+        CampaignMixin.tearDown(self)
+
+
+class AddCampaignTest(CampaignMixin):
+
+    def _add(self, campaigns):
+        ''' 计划：添加，并检查 '''
+        server, user = self.server, self.user
+        if is_sequence(campaigns) is False:
+            campaigns = [campaigns]
+        res = user.addCampaign(server=server, body=campaigns)
+        ids = list(x.campaignId for x in res.body.campaignTypes)
+        # 查询数据库
+        res = user.getCampaignByCampaignId(
+            server=server, body={'campaignIds': ids})
+        for idx, base in enumerate(res.body.campaignTypes):
+            expect = campaigns[idx].normalize(campaignId=base.campaignId)
+            assert expect == base
+
+    def test_add_default(self):
+        ''' 计划：添加计划，使用默认值 '''
+        self._add(CampaignType.random())
+
+    def test_add_null(self):
+        ''' 计划：添加计划，使用null值 '''
+        raise UndefinedException
+
+    def test_add_title01(self):
+        ''' 计划：添加计划，名称长度为1 '''
+        self._add(CampaignType.random(campaignName='1'))
+
+    def test_add_title02(self):
+        ''' 计划：添加计划，名称长度超过30，错误码901202 '''
+        server, user = self.server, self.user
+        campaign = CampaignType.random(campaignName=gen_chinese_unicode(31))
+        res = user.addCampaign(server=server, body=campaign)
+        # 901203: 计划名称已存在
+        assert_header(res.header, STATUS.FAIL, 901202)
+
+    def test_add_budget01(self):
+        ''' 计划：添加计划，预算为9.99, 错误码901232 '''
+        server, user = self.server, self.user
+        campaign = CampaignType.random(budget=9.99)
+        res = user.addCampaign(server=server, body=campaign)
+        # 901203: 计划名称已存在
+        assert_header(res.header, STATUS.FAIL, 901232)
+
+    def test_add_budget02(self):
+        ''' 计划：添加计划，预算为500000.01, 错误码901233 '''
+        # 计划日预算不能高于500000.0元
+        server, user = self.server, self.user
+        campaign = CampaignType.random(budget=500000.01)
+        res = user.addCampaign(server=server, body=campaign)
+        # 901203: 计划名称已存在
+        assert_header(res.header, STATUS.FAIL, 901233)
+
+    def test_add_budget03(self):
+        ''' 计划：添加计划，预算为10.49, 测试两位小数 '''
+        self._add(CampaignType.random(budget=10.49))
+
+    def test_add_duplicate_name(self):
+        ''' 计划：添加计划，名称重复，错误码901203 '''
+        # 计划名称已存在
+        server, user = self.server, self.user
+        campaign = CampaignType.random()
+        self._add(campaign)
+        res = user.addCampaign(server=server, body=campaign)
+        assert_header(res.header, STATUS.FAIL, 901203)
+
+    def test_add_500(self):
+        ''' 计划：添加计划500个 '''
+        self._add(CampaignType.factory(500))
+
+    def test_add_exceed(self):
+        ''' 计划：添加计划，超过500个 '''
+        server, user = self.server, self.user
+        campaigns = CampaignType.factory(501)
+        res = user.addCampaign(server=server, body=campaigns)
+        assert_header(res.header, STATUS.FAIL, 901204)
+
+
+class UpdateCampaignTest(CampaignMixin):
+
     '''
-    @param update_map: dict{
-        key:{
-            old_value: new_value
-        }
-    }
-    @return set_list, new_list
-    '''
-    set_list, new_list = [], []
-    for key, value_map in update_map.iteritems():
-        for set_value, new_value in value_map.iteritems():
-            set_list.append({key: json.loads(set_value)})
-            new_list.append({key: json.loads(new_value)})
-    return set_list, new_list
-
-
-def doRequest(req, body, server, user, recover=False):
-    '''
-    req.response(**kwargs)
-    @return requests.Response
-    '''
-    data = APIData(header=user)
-    data.body = AttributeDict(body)
-    res = req.response(server, json=data)
-    log.debug(res.request.url)
-    log.debug('[REQUEST ] %s' % res.request.body)
-    log.debug('[RESPONSE] %s' % res.content)
-    return res
-
-
-def _update(body, server, user):
-    if not isinstance(body, collections.Sequence):
-        body = [body]
-    return doRequest(updateCampaign, {"campaignTypes": body}, server, user)
-
-
-def test_updateCampaign(server, user):
-    '''
-    POST /cpc/campaign/updateCampaign
-
     可以更新的域：
     campaignId  必填
     campaignName: 15个汉字或者30个英文
@@ -185,352 +241,160 @@ def test_updateCampaign(server, user):
     status
         无效属性
     '''
-    # Negative Cases:
-    test_update_with_existing_name(server, user)
 
-    # Positive Cases
-    test_update_with_duplicate_campaigns(server, user)
-    test_update_using_map(campaign_map, server, user)
+    def setUp(self):
+        super(UpdateCampaignTest, self).setUp()
+        server, user = self.server, self.user
+        res = user.addCampaign(server=server, body=CampaignType.random())
+        self.campaignId = res.body.campaignTypes[0].campaignId
 
+    def _update(self, **kwargs):
+        ''' 计划：添加，并检查 '''
+        server, user = self.server, self.user
+        campaignId = kwargs.setdefault('campaignId', self.campaignId)
+        # 原计划
+        campaign = user.getCampaignByCampaignId(
+            server=server, body=CampaignId(self.campaignId)
+        ).body.campaignTypes[0]
+        campaign = CampaignType(**campaign)
+        # 更新计划
+        update_campaign = CampaignType(**kwargs)
+        res = self.updateCampaign(update_campaign)
+        assert_header(res.header)
+        # 查询数据库
+        res = user.getCampaignByCampaignId(
+            server=server, body=CampaignId(campaignId))
+        # 对比
+        base = res.body.campaignTypes[0]
+        expect = campaign.normalize(update_campaign)
+        assert expect == base, u'更新后计划和预期不一致\n'\
+            u'原来: %s\n更新: %s\n期望: %s\n实际: %s\n' % (
+            campaign, kwargs, expect, base)
 
-# @suite(SUITE.API)  # 动态分配测试集合
+    def updateCampaign(self, campaign):
+        return self.user.updateCampaign(server=self.server, body=campaign)
 
+    def test_update_title01(self):
+        """ 计划：更新计划名称为1个字符 """
+        self._update(campaignName='1')
 
-@formatter
-def test_update_with_existing_name(server, user):
-    ''' 使用已存在的计划名称更新计划，预期结果："计划名称已存在" '''
-    '''
-    计划名称重复
-    1. 和当前计划的名字相同 ?? 我认为这是可以接受的……
-    2. 和该账户其他计划的名字相同
-    3. 和其他账户的计划名字相同
-    '''
-    data = _get_n(1, server, user).body.campaignTypes[0]
-    # FAILURE case: update with same campaignName
-    res = _update(data, server, user)
-    assert_header(res.header, 2)
-    assert {"code": 901203,
-            "message": u"计划名称已存在"} in res.header.failures, res.header
+    def test_update_title02(self):
+        """ 计划：更新计划名称为30个字符 """
+        self._update(campaignName=gen_chinese_unicode(30))
 
-    data_list = _get_n(2, server, user).body.campaignTypes
-    data_list[0].campaignName = data_list[1].campaignName
-    res = _update(data_list[0:1], server, user)
-    # assert res.status_code == 404
-    assert_header(res.header, 2)
-    assert {"code": 901203,
-            "message": u"计划名称已存在"} in res.header.failures, res.header
+    def test_update_title03(self):
+        """ 计划：更新计划名称为31个字符，错误码901202 """
+        res = self.updateCampaign(CampaignType(
+            campaignId=self.campaignId,
+            campaignName=gen_chinese_unicode(31)
+        ))
+        assert_header(res.header, STATUS.FAIL, 901202)
 
+    def test_update_title04(self):
+        """ 计划：更新计划名称为相同的用户名，错误码901202 """
+        res = self.updateCampaign(CampaignType(
+            campaignId=self.campaignId,
+            campaignName=gen_chinese_unicode(31)
+        ))
+        assert_header(res.header, STATUS.FAIL, 901202)
 
-@formatter
-def test_update_with_duplicate_campaigns(server, user):
-    '''
-    测试更新列表中存在重复的计划id，预期结果：以最后的更新值为准
-    '''
-    data = _get_n(1, server, user).body.campaignTypes[0]
-    _list = list(yield_campaignType(3))
-    map(lambda x: x.update(campaignId=data.campaignId), _list)
-    res = _update(_list, server, user)
-    new_data = _get_by_ids(data.campaignId, server, user).body.campaignTypes[0]
-    assert new_data >= _list[-1]
+    def test_update_budget01(self):
+        ''' 计划：更新计划预算为9.99, 错误码901232 '''
+        res = self.updateCampaign(CampaignType(
+            campaignId=self.campaignId,
+            budget=9.99,
+        ))
+        assert_header(res.header, STATUS.FAIL, 901232)
 
+    def test_update_budget02(self):
+        ''' 计划：更新计划预算为10.49, 正常更新 '''
+        self._update(budget=10.49)
 
-@formatter
-def test_update_using_map(campaign_map, server, user):
-    '''
-    依次更新计划的属性，预期结果：全部更新成功
-    '''
+    def test_update_budget03(self):
+        ''' 计划：更新计划预算为500000.00，正常更新 '''
+        self._update(budget=500000.00)
 
-    _delete_all(server, user)
-    set_list, new_list = parse_update_map(campaign_map)
-    update_list = _get_n(len(set_list), server, user).body.campaignTypes
-    # REMOVE campaignName to get rid of `901203` error
-    # 删除 campaignName，否则 相同的campaignName会引发异常
-    for item, _set in izip(update_list, set_list):
-        item.update(_set)
-        item.pop('campaignName')
+    def test_update_budget04(self):
+        ''' 计划：更新计划预算为500000.01, 错误码901233 '''
+        res = self.updateCampaign(CampaignType(
+            campaignId=self.campaignId,
+            budget=500000.01
+        ))
+        assert_header(res.header, STATUS.FAIL, 901233)
 
-    res = _update(update_list, server, user)
-    assert_header(res.header, 0)
-    update_bd = res.body.campaignTypes
-    assert update_bd <= update_list
+    def test_update_default(self):
+        ''' 计划：使用null更新，默认不做任何修改 '''
+        self._update(
+            campaignName=None,
+            budget=None,
+            regionTarget=None,
+            excludeIp=None,
+            negativeWords=None,
+            exactNegativeWords=None,
+            schedule=None,
+            showProb=None,
+            pause=None,
+        )
 
-    res = _get_by_ids([x.campaignId for x in update_list], server, user)
-    assert_header(res.header, 0)
-    after = res.body.campaignTypes
-    for item, _new in izip(after, new_list):
-        assert item >= _new, 'EXPECTED:\n%sEXACTED:\n%s' % (item, _new)
+    def test_update_pause(self):
+        ''' 计划：更新计划状态pause '''
+        self._update(pause=True)
+        # 默认不修改
+        self._update(pause=None)
+        self._update(pause=False)
+        # 默认不修改
+        self._update(pause=None)
 
+    def test_update_regionTarget01(self):
+        ''' 计划：更新计划的推广地域 '''
+        self._update(regionTarget=[u'北京', u'天津'])
+        # 取消限制
+        self._update(regionTarget=[u'所有地域'])
 
-def _subset(_set, k=None):
-    '''
-    Choose k items from a sequence
-    @param _set: super set, should have at least 2 items
-    @param k: should be not larger than len(_set)
-    '''
-    k = k or random.randrange(1, len(_set))
-    return random.sample(_set, k)
+    def test_update_excludeIp01(self):
+        ''' 计划：更新计划的IP排除 '''
+        self._update(excludeIp=['10.9.*.*', '42.120.172.*', '127.0.0.1'])
+        # 取消限制
+        self._update(excludeIp=['$'])
 
+    def test_update_negativeWords(self):
+        """ 计划：更新计划的否定关键词 """
+        self._update(negativeWords=[u'否定01', u'否定02'])
+        # 取消限制
+        self._update(negativeWords=[u'$'])
 
-def _shuffle(_list):
-    random.shuffle(_list)
-    return _list
+    def test_update_exactNegativeWords(self):
+        """ 计划：更新计划的精确否定关键词 """
+        self._update(exactNegativeWords=[u'精确否定', u'否定关键词'])
+        # 取消限制
+        self._update(exactNegativeWords=['$'])
 
+    def test_upate_schedule01(self):
+        """ 计划：更新计划的推广时段 """
+        self._update(schedule=[
+            Schedule(1, 0, 12),
+            Schedule(2, 0, 24),
+            Schedule(6, 12, 24),
+            Schedule(6, 10, 20)
+        ])
+        # 取消限制
+        self._update(schedule=[
+            Schedule(0)
+        ])
 
-@formatter
-def test_delete_subset(server, user, recover=False):
-    '''
-    删除部分现存计划，不含不存在的计划
-    '''
-    all_before = _get_nlt_n_ids(10, server, user)
-    # get subset of existing ids
-    del_ids = _subset(all_before.body.campaignIds)
-    del_bd = _delete_list(del_ids, server, user)
-    assert_header(del_bd.header, 0)
-    all_after = _get_all_ids(server, user, recover)
-    assert set(all_before.body.campaignIds).difference(
-        set(all_after.body.campaignIds)) == set(del_ids), \
-        '%s\n%s\n%s' % (all_before, del_ids, all_after)
-
-
-@formatter
-def test_delete_cross_user(server, user):
-    '''
-    删除其他用户的计划，暂未实现
-    '''
-    raise UndefinedException
-
-
-@formatter
-def test_delete_mixed(server, user, recover=False):
-    '''
-    删除部分现存计划，包含不存在的计划ID
-    预期结果：存在的计划ID成功删除，不存在的计划ID返回
-    '''
-    ids_before = _get_nlt_n_ids(10, server, user).body.campaignIds
-    min_id = min(ids_before)
-    del_ids = _subset(ids_before)
-    err_ids = _subset(range(min_id - len(ids_before), min_id))
-    del_bd = _delete_list(_shuffle(del_ids + err_ids), server, user)
-    assert_header(del_bd.header, 1)
-    all_set = set(_get_all_ids(server, user).body.campaignIds)
-    assert all_set.isdisjoint(
-        del_ids + err_ids), 'Partial delettion case failed!\n'\
-        '%s should be deleted!' % all_set.intersection(del_ids + err_ids)
-    assert set(del_bd.body.campaignIds) == set(
-        err_ids), 'Partial deletion case failed!\nExpected failed id: %s\n'\
-        'Exact failed id: %s' % (err_ids, del_bd.body.campaignIds)
-
-
-@formatter
-def test_delete_all(server, user, recover=False):
-    '''
-    删除账户的所有计划
-    '''
-    all_before = _get_nlt_n_ids(10, server, user)
-    del_bd = _delete_list(all_before.body.campaignIds, server, user)
-    all_after = _get_all_ids(server, user)
-    assert_header(del_bd.header, 0)
-    assert del_bd.body <= dict(result=0, campaignIds=[])
-    assert all_after.body == dict(campaignIds=[]), 'Content Differ!\n'\
-        'Expected: EMPTY\nActually: %s\n' % (all_after.body)
-
-
-def test_deleteCampaign(server, user):
-    test_delete_subset(server, user)
-    test_delete_mixed(server, user)
-    test_delete_all(server, user)
-
-
-def _get_nlt_n_ids(n, server, user, recover=False):
-    '''
-    get not less than `n` ids
-    @return : list of campaign ids
-    为账户准备至少 n 个计划
-    如果已经存在超过(或等于)n个计划，则直接返回
-    否则添加至 n 个计划
-    '''
-    get_bd = _get_all_ids(server, user)
-    if n <= len(get_bd.body.campaignIds):
-        return get_bd
-    bd = _add_n(n - len(get_bd.body.campaignIds), server, user)
-    _bd = json.loads(bd.request.body, object_hook=AttributeDict)
-    assert_header(bd.header, 0)
-    assert _bd.body <= bd.body
-    return _get_all_ids(server, user)
-
-
-def _get_all_ids(server, user, recover=False):
-    '''
-    get all campaignIds
-    this request should be always `success` except network issues
-    @return object like {'campaignIds':[...]}
-    '''
-    res = doRequest(getAllCampaignId, {}, server, user, recover)
-    # assert res.status_code == 200
-    assert_header(res.header, 0)
-    return res
-
-
-def _get_by_ids(ids, server, user, recover=False):
-    '''
-    @return: requests.Response object
-    '''
-    if not isinstance(ids, collections.Sequence):
-        ids = [ids]
-    return doRequest(getCampaignByCampaignId, {'campaignIds': ids},
-                     server, user)
-
-
-def _get_n(n, server, user, recover=False):
-    '''
-    get `n` campaigns by random
-    @return : list of campaigns
-    为账户准备至少 n 个计划
-    如果已经存在超过(或等于)n个计划，则随机返回n个计划
-    否则添加至 n 个计划
-    '''
-    bd = _get_nlt_n_ids(n, server, user, recover)
-    return _get_by_ids(_subset(bd.body.campaignIds, n), server, user)
-
-
-def _get_all(server, user, recover=False):
-    '''
-    get all campaigns
-    '''
-    res = doRequest(getAllCampaign, {}, server, user, recover)
-    # assert res.status_code == 200
-    assert_header(res.header, 0)
-    return res
-
-
-def _add_n(n, server, user, recover=False):
-    '''
-    添加 n 个计划，不管成功与否，意即不做任何assertion
-    输入：n
-    返回：Response Object
-    '''
-    if n <= 0:
-        return
-    campaigns = list(yield_campaignType(n))
-    res = _add_list(campaigns, server, user, recover)
-    return res
-
-
-def _add_list(campaign_list, server, user, recover=False):
-    '''
-    添加 campaigns; 如果超过500个则全部失败
-    @param campaign_list: list of new campaigns
-    '''
-    res = doRequest(addCampaign, body={'campaignTypes': campaign_list},
-                    server=server, user=user)
-    return res
-
-
-def test_addCampaign(server, user):
-    # SUCCESS cases
-    test_add_n(1, server, user)
-    test_add_n(random.randrange(2, MAX_CAMPIGN_AMOUNT), server, user)
-    test_add_n(MAX_CAMPIGN_AMOUNT, server, user)
-    # FAILURE cases
-    test_add_exceed(MAX_CAMPIGN_AMOUNT, server, user)
-    test_add_duplicate(server, user)
-    # TODO: 目前添加的计划里只要包含1个重复case就是失败的
-    test_add_mixed(server, user)
-
-
-@formatter
-def test_add_duplicate(server, user):
-    '''
-    新增的计划名称已存在，期望返回：报错
-    '''
-    _delete_all(server, user)
-    bd = _get_n(1, server, user)
-    res = _add_list(bd.body.campaignTypes, server, user)
-    assert_header(res.header, 2)
-    assert {"code": 901203,
-            "message": u"计划名称已存在"} in res.header.failures, res.header
-
-
-@formatter
-def test_add_mixed(server, user):
-    '''
-    批量插入，部分计划名称已存在
-    '''
-    # TODO 可能计划数满了，意即 inexistence < 1
-    _delete_all(server, user)
-    ids = _get_nlt_n_ids(10, server, user).body.campaignIds
-    existing = _get_by_ids(_subset(ids), server, user).body.campaignTypes
-    inexistence = list(yield_campaignType(10))
-    res = _add_list(_shuffle(existing + inexistence), server, user)
-    # assert res.status_code == 404
-    assert_header(res.header, 2)
-    assert {"code": 901203,
-            "message": u"计划名称已存在"} in res.header.failures, res.header
-
-
-@formatter
-def test_add_n(n, server, user, recover=False):
-    '''
-    测试添加n个计划，不包括总数溢出
-    '''
-    # Clean Up
-    _delete_all(server, user)
-    data = list(yield_campaignType(n))
-    add_bd = _add_list(data, server, user)
-    assert_header(add_bd.header, STATUS.SUCCESS)
-    # Compare items in order:
-    # TODO: sort if return list not in order
-    for req_bd, res_bd in izip(data, add_bd.body.campaignTypes):
-        assert res_bd >= req_bd
-    all_campaigns = _get_all(server, user)
-    func = lambda y: sorted(y.body.campaignTypes, key=lambda x: x.campaignId)
-    for add_value, get_value in izip(func(add_bd), func(all_campaigns)):
-        assert add_value <= get_value
-
-
-@formatter
-def test_add_exceed(maxn, server,
-                    user, recover=False):
-    '''
-    测试添加计划后，计划总数超过500
-    '''
-    all_before = _get_all_ids(server, user)
-    n = random.randint(maxn, maxn << 1)
-    res = _add_n(n, server, user)
-    assert_header(res.header, 2)
-    assert {"code": 901204, "message": u"推广计划数量不能超过500个"
-            } in res.header.failures, res.body
-    all_after = _get_all_ids(server, user)
-    assert all_before.body == all_after.body, '[BEFORE]: %s\n[AFTER]: %s\n' % (
-        all_before.body, all_after.body)
-
-
-def _delete_all(server, user, recover=False):
-    '''
-    删除所有计划
-    body.result: 0 全部成功，1 部分失败，2 全部失败
-    '''
-    bd = _get_all_ids(server, user, recover)
-    if bd.body.campaignIds:
-        del_bd = _delete_list(
-            bd.body.campaignIds, server, user, recover)
-        assert 0 == del_bd.body.result, 'Delete all campaigns failed!\n%s'\
-            % del_bd.body.campaignIds
-
-
-def _delete_list(_list, server, user, recover=False):
-    if not isinstance(_list, collections.Sequence):
-        _list = [_list]
-    res = doRequest(
-        deleteCampaign, {'campaignIds': _list}, server, user, recover)
-    return res
+    def test_update_showProb(self):
+        ''' 计划：更新计划的展现方式 '''
+        self._update(showProb=1)
+        # 默认不修改
+        self._update(showProb=None)
+        self._update(showProb=0)
+        # 默认不修改
+        self._update(showProb=None)
 
 
 @log_dec(log, LOG_FILENAME, __loglevel__)
 def test_main(server=None, user=None):
     server = server or ThreadLocal.SERVER
     user = user or ThreadLocal.USER
-
-    test_updateCampaign(server, user)
-    test_deleteCampaign(server, user)
-    test_addCampaign(server, user)
+    AddCampaignTest(server, user).run()
+    UpdateCampaignTest(server, user).run()

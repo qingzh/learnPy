@@ -12,11 +12,11 @@ import logging
 from requests.exceptions import InvalidURL
 import requests
 from lxml import etree
-from .models.const import STATUS
+from .compat import API_STATUS as STATUS
 from .settings import LOG_DIR
 from datetime import datetime
 import os
-from .compat import is_sequence
+from .compat import is_sequence, BLANK
 
 
 log = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 __all__ = [
     'BLOCK_SIZE', 'get_log_filename', 'write_file',
     'assert_header', 'prepare_cookies', 'validate_url',
-    'len_unicode', 'sub_commas', 'md5_of_file']
+    'len_unicode', 'sub_commas', 'md5_of_file', 'chain_value']
 
 BLOCK_SIZE = 1 << 15
 server_regex = re.compile(
@@ -46,9 +46,27 @@ header_dict = {
 }
 
 
+def chain_value(expect, base, variable, default=BLANK, wrapper=None):
+    '''
+    get value from
+        `expect` first;
+        `base` secondly;
+        `default` finally;
+    then apply `wrapper` to the value if exist;
+    '''
+    value = expect.get(variable, BLANK)
+    if value is None:
+        value = base.get(variable)
+    if value is BLANK:
+        value = base.get(variable, default)
+    if wrapper:
+        value = wrapper(value)
+    return value
+
+
 def get_log_filename(tag, suffix=None):
     suffix = suffix or datetime.now().strftime('%Y%m%d%H%M%S%f')
-    return os.path.join(LOG_DIR, '%s_%s.log' %(tag, suffix))
+    return os.path.join(LOG_DIR, '%s_%s.log' % (tag, suffix))
 
 
 def assert_header(header, status=STATUS.SUCCESS, code=None):
@@ -60,12 +78,13 @@ def assert_header(header, status=STATUS.SUCCESS, code=None):
     }
     '''
     assert header.status == status and header.desc == header_dict[
-        status], 'Header: %s' % header
+        status], 'Expected: {{"status": {},"desc": "{}"}}\n'\
+        'Actually: {}'.format(status, header_dict[status], header)
     if status != STATUS.SUCCESS and code:
         expected = set(is_sequence(code, True))
         actually = set(x.code for x in header.failures)
         assert expected.issubset(actually), 'Error code differ!\n'\
-            'Expected: %s\nActtully: %s' % (expected, actually)
+            'Expected: %s\nActually: %s' % (expected, actually)
 
 
 def write_file(generator, filename, size=BLOCK_SIZE, mode='wb'):

@@ -1,7 +1,7 @@
 #! -*- coding:utf8 -*-
 
 from .models.common import TestResult
-from .models.const import API_STATUS
+from .models.const import STATUS
 from .exceptions import UndefinedException
 from time import clock
 from functools import update_wrapper, partial
@@ -32,17 +32,18 @@ def formatter(func):
         ret, begin = None, clock()
         try:
             ret = func(*args, **kwargs)
-            tr.status = API_STATUS.SUCCESS
-            tr.message = 'SUCCESS'
+            tr.status = STATUS.SUCCESS
+            message = 'SUCCESS'
         except AssertionError as e:
-            tr.status = API_STATUS.FAILURE
-            tr.message = str(e)
+            tr.status = STATUS.FAILURE
+            message = e.message
         except UndefinedException as e:
-            tr.status = None
-            tr.message = str(e)
+            tr.status = STATUS.UNDEFINED
+            message = e.message
         except Exception as e:
-            tr.status = API_STATUS.EXCEPTION
-            tr.message = traceback.format_exc()
+            tr.status = STATUS.EXCEPTION
+            message = traceback.format_exc()
+        tr.message = message.decode('unicode_escape')
         tr.runtime = clock() - begin
         tr.function = func.__name__
         mname = func.__module__

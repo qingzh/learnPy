@@ -5,18 +5,12 @@ from ..compat import is_sequence
 import random
 from APITest.compat import gen_chinese_unicode
 from datetime import datetime
+from .campaign import CampaignId
 
 MAX_PRICE = 500000
 
 __all__ = [
     'AdgroupType', 'CampaignId', 'AdgroupId']
-
-
-class CampaignId(APIData):
-    __name__ = 'campaignIds'
-
-    def __init__(self, campaignIds=BLANK):
-        self.campaignIds = is_sequence(campaignIds, True)
 
 
 class AdgroupId(APIData):

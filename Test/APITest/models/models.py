@@ -204,8 +204,10 @@ def response_hook(obj):
     def response_wrapper(response, *args, **kwargs):
         # 2015年8月5日定论，所有返回码都必须是200,
         # status code 在 hook 里统一验证，不再放到单独的Assertion里
-        assert response.status_code == 200, 'Status code must be 200! '\
-            'not "%s"' % response.status_code
+        assert response.status_code == 200, 'Expected status `200`'\
+            ', got `{}`.\nURL:{}\nBODY:{}\nRES:{}'.format(
+                response.status_code, response.request.url,
+                response.request.body, response.content)
         try:
             response._body = obj(response.json())
             response.header = response._body.header
@@ -274,9 +276,10 @@ class APIRequest(Request):
         log.debug('[REQUEST ] %s' % res.request.body)
         log.debug('[RESPONSE] %s' % res.content)
         # For API, status code should be always `200`
-        assert res.status_code == 200, \
-            'Expected status `200`, got `{}`.\nURL:{}\nBody:{}\n'.format(
-                res.status_code, res.request.url, res.request.body)
+        assert res.status_code == 200, 'Expected status `200`'\
+            ', got `{}`.\nURL:{}\nBody:{}\nRESP:{}'.format(
+                res.status_code, res.request.url,
+                res.request.body, res.contents)
         return res
 
     def __call__(self, server=None, header=None, body=None,
