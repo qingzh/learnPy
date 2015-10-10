@@ -1,6 +1,5 @@
 #! -*- coding:utf8 -*-
 
-# print '---- common init ----'
 
 import json
 import logging
@@ -9,7 +8,7 @@ from .const import *
 from ..exceptions import ReadOnlyAttributeError
 
 __all__ = [
-    'AttributeDict', 'APIAttributeDict',
+    'AttributeDict', 'APIAttributeDict', 
     'ReadOnlyObject', 'PersistentAttributeObject',
     'TestResult', 'SlotsDict', 'AttributeDictWithProperty',
 ]
