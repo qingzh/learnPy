@@ -56,8 +56,9 @@ def chain_value(expect, base, variable, default=BLANK, wrapper=None):
     '''
     value = expect.get(variable, BLANK)
     if value is None:
-        value = base.get(variable)
-    if value is BLANK:
+        ''' None 是指不修改原有值，如果原来没有值，则仍为 None '''
+        value = base.get(variable, None)
+    elif value is BLANK:
         value = base.get(variable, default)
     if wrapper:
         value = wrapper(value)
@@ -84,7 +85,7 @@ def assert_header(header, status=STATUS.SUCCESS, code=None):
         expected = set(is_sequence(code, True))
         actually = set(x.code for x in header.failures)
         assert expected.issubset(actually), 'Error code differ!\n'\
-            'Expected: %s\nActually: %s' % (expected, actually)
+            'Expected: %s\nActually: %s' % (expected, header.failures)
 
 
 def write_file(generator, filename, size=BLOCK_SIZE, mode='wb'):

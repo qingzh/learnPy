@@ -153,6 +153,10 @@ class APIDataMixin(AttributeDict):
             self.__setitem__(key, value)
 
     def __setitem__(self, key, value):
+        '''
+        如果类型名称是复数，例如 campaignTypes 则自动将值转化为数组
+        否则转化为字符串类型，例如 accountInfoType
+        '''
         if value == BLANK:
             # clear item
             return self.pop(key, BLANK)

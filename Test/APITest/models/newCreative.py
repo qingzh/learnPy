@@ -34,6 +34,9 @@ class SublinkType(APIType):
         # 推广子链属性，不可改变，由系统指定
         self.status = status
 
+    def normalize(self, obj, **kwargs):
+        return 
+
 
 def gen_sublinkInfo(desc, url):
     '''

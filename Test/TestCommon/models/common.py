@@ -36,12 +36,17 @@ class AttributeDict(dict):
             value = self[key]
             AttributeDict.__setitem__(self, key, value)
 
+    def __hash__(self):
+        return hash(self.__str__())
+
     @property
     def __classhook__(self):
         return self.__class__
 
     def __getitem__(self, key):
         # `dict` item first
+        # 这里允许通过[key] 形式来获取属性
+        # 但是如果设置有 Property 那么就不能这么做
         if key in self:
             return super(AttributeDict, self).__getitem__(key)
         return super(AttributeDict, self).__getattribute__(key)
@@ -142,6 +147,8 @@ class AttributeDictWithProperty(AttributeDict):
             else:
                 AttributeDictWithProperty.__setitem__(self, key, value)
 
+    __getitem__ = dict.__getitem__
+    
     def __setitem__(self, key, value):
         if value == BLANK:
             # clear item

@@ -13,6 +13,7 @@ Type:
 import logging
 from APITest.settings import api
 from APITest.models.adgroup import *
+from APITest.models.campaign import *
 from APITest.utils import assert_header, get_log_filename
 from APITest.models.user import UserObject
 from APITest.models.const import STATUS
@@ -58,15 +59,63 @@ USER = ThreadLocal.USER
         method=delete, uri='/api/adgroup/deleteAdgroup'),
 }
 '''
-locals().update(api.campaign)
-locals().update(api.adgroup)
 
-_local_ = threading.local()
-GLOBAL = _local_.__dict__.setdefault('global', {})
-GLOBAL[TAG_TYPE] = {}
+env = locals()
+
+def setup_env(source, **kwargs):
+    for key, value in source.items():
+        env[key] = partial(value, **kwargs)
+
 # ------------------------------------------------------------------------
 # 定义测试用例 addAdgroup
 # ------------------------------------------------------------------------
+
+
+class AdgroupMixin(TestCase):
+
+    def setup_env(self, source):
+        for key, value in source.items():
+            self.__dict__[key] = partial(
+                value, server=self.server, header=self.user)
+
+    def __init__(self, server=None, user=None, uid=None):
+        super(AdgroupMixin, self).__init__()
+        self.server = server or ThreadLocal.SERVER
+        self.user = user or ThreadLocal.user
+        self.setup_env(api.campaign)
+        self.setup_env(api.adgroup)
+
+        if uid:
+            self.uid = uid
+        else:
+            pass
+            # self.uid = get_uid(user['username'])
+
+    def tearDown(self):
+        ''' 清空所有的物料 '''
+        server, user = self.server, self.user
+        # response.body: {'campaignIds':[...]}
+        ids =self.getAllCampaignId().body
+        if not ids['campaignIds']:
+            return
+        res = self.deleteCampaign(body=ids)
+        assert_header(res.header)
+
+    def setUp(self):
+        '''
+        应当转化为数据库操作
+        '''
+        self.tearDown()
+        res = self.addCampaign(
+            body=CampaignType(CampaignName=LOG_FILENAME))
+        assert_header(res.header)
+        self.campaignId = res.body.CampaignTypes[0].campaignId
+
+    def run(self):
+        AdgroupMixin.tearDown = lambda x: None
+        super(AdgroupMixin, self).run()
+        AdgroupMixin.tearDown = AdgroupMixin.setUp
+        AdgroupMixin.tearDown(self)
 
 
 def _compare_dict(exp, act):
@@ -118,6 +167,10 @@ def add_setup(func):
 
     return update_wrapper(wrapper, func)
 
+
+class AddAdgroup(AdgroupMixin):
+    def tst_default(self):
+        self._add()
 
 @formatter
 @add_setup

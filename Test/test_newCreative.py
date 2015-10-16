@@ -5,7 +5,7 @@
 
 from APITest.models import image
 from APITest.models.user import UserObject
-from APITest.models.const import STATUS
+from APITest.models.const import API_STATUS as  STATUS
 from APITest.models.models import APIData, AttributeDict
 from APITest.models.newCreative import *
 from APITest.settings import api

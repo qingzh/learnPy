@@ -43,7 +43,10 @@ def formatter(func):
         except Exception as e:
             tr.status = STATUS.EXCEPTION
             message = traceback.format_exc()
-        tr.message = message.decode('unicode_escape')
+        try:
+            tr.message = message.decode('unicode_escape')
+        except Exception:
+            tr.message = message
         tr.runtime = clock() - begin
         tr.function = func.__name__
         mname = func.__module__

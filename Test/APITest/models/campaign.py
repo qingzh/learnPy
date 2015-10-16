@@ -1,6 +1,7 @@
 # -*- coding:utf-8 -*-
 
 import json
+import logging
 from .map import yield_province_city
 from .models import AttributeDict
 from ..utils import yield_infinite, chain_value
@@ -10,7 +11,9 @@ import collections
 
 # campaignId, status 是不可填的
 from .models import APIType, APIData
+from .wrappers import *
 
+log = logging.getLogger(__name__)
 
 # 推广时段默认值
 DEFAULT_SCHEDULE = [
@@ -23,41 +26,23 @@ DEFAULT_SCHEDULE = [
     {"weekDay": 7, "startHour": 0, "endHour": 24},
 ]
 
-# 格式化推广时段
 
-
-def schedule_wrapper(value):
-    if not is_sequence(value):
-        return value
-    if len(value) == 1 and value[0]['weekDay'] == 0:
-        return DEFAULT_SCHEDULE
-    return value
-
-
-# 格式化(精确)否定关键词
-def negwords_wrapper(value):
-    if not is_sequence(value):
-        return value
-    # length: 1; items: '$'
-    if ['$'] == value:
-        return ['']
-    return value
+__all__ = [
+    'CampaignId', 'Schedule', 'CampaignType', 'schedule_wrapper']
 
 
 def budget_wrapper(value):
+    '''
+    设为0，表示不限制预算(数据库填"-1")
+    需不需要转化为2位小数的字符串，以方便比较
+    '''
     try:
-        return round(float(value), 2)
+        value = round(float(value), 2)
     except Exception:
         return value
-
-
-def region_wrapper(value):
-    if not is_sequence(value):
-        return value
-    if [u'所有地域'] == value:
-        return [u'所有地域']
+    if abs(value-0) < 0.00000001:
+        return -1
     return value
-
 
 class CampaignId(APIData):
     __name__ = 'campaignIds'
@@ -72,6 +57,31 @@ class Schedule(APIData):
         self.weekDay = weekDay
         self.startHour = startHour
         self.endHour = endHour
+
+
+def schedule_escape(value):
+    '''
+    将 "110-117" 转化为 Schedule(weekDay=1, startHour=10, endHour=17) 
+    '''
+    if value is None or value is BLANK:
+        return value
+    # Schedule，则返回[value]
+    if isinstance(value, dict):
+        return [value]
+    # 字符串，则转化为数组
+    if isinstance(value, basestring):
+        value = [value]
+    # 数组：如果是Schedule数组，则直接返回
+    if isinstance(value[0], dict):
+        return value
+    # 现在 value 应该是字符串数组
+    schedule = []
+    for item in value:
+        # 110-117
+        s = [x.strip() for x in item.split('-')]
+        weekday, startHour, endHour = s[0][0], s[0][1:], s[1][1:]
+        schedule.append(Schedule(weekday, startHour, endHour))
+    return schedule
 
 
 class CampaignType(APIType):
@@ -118,6 +128,13 @@ class CampaignType(APIType):
         # invalid
         self.status = status
 
+    def __setitem__(self, key, value):
+        # 如果是 schedule 则进行转义，否则正常赋值
+        if key == 'schedule':
+            value = schedule_escape(value)
+        super(CampaignType, self).__setitem__(key, value)
+
+
     @classmethod
     def factory(cls, amount=1):
         '''
@@ -152,13 +169,14 @@ class CampaignType(APIType):
             campaignId=chain_value(self, obj, 'campaignId', None),
             campaignName=chain_value(obj, self, 'campaignName', BLANK),
             budget=chain_value(obj, self, 'budget', -1, budget_wrapper),
-            regionTarget=chain_value(obj, self, 'regionTarget', []),
+            regionTarget=chain_value(
+                obj, self, 'regionTarget', [], region_wrapper),
             excludeIp=chain_value(
-                obj, self, 'excludeIp', [''], negwords_wrapper),
+                obj, self, 'excludeIp', [''], set_wrapper),
             negativeWords=chain_value(
-                obj, self, 'negativeWords', [''], negwords_wrapper),
+                obj, self, 'negativeWords', [''], set_wrapper),
             exactNegativeWords=chain_value(
-                obj, self, 'exactNegativeWords', [''], negwords_wrapper),
+                obj, self, 'exactNegativeWords', [''], set_wrapper),
             schedule=chain_value(
                 obj, self, 'schedule', DEFAULT_SCHEDULE, schedule_wrapper),
             showProb=chain_value(obj, self, 'showProb', 0),
@@ -167,13 +185,29 @@ class CampaignType(APIType):
         )
 
     def __eq__(self, obj):
+        '''
+        需要特殊处理的字段： 
+        status 字段忽略
+        budget 字段进行四舍五入的比较(round(float, 2))，这个在wrapper里面就做了
+        '''
         if not isinstance(obj, collections.Mapping):
             return False
         for key in self.iterkeys():
             if key == 'status':
                 continue
-            if self[key] != obj[key]:
-                return False
+            base, expt = self[key], obj[key]
+            '''序列类型：转化为集合； 其他类型：直接比较'''
+            if is_sequence(base):
+                if is_sequence(expt) and not set(base)-set(expt):
+                    continue
+                # else: return False
+            else:
+                if base == expt:
+                    continue
+                # else: return False
+            log.debug('key: %s, %s != %s', key, base, expt)
+            # raise AssertionError('key: %s, %s != %s' % (key, base, expt))
+            return False
         return True
 
     def db_row(self):
