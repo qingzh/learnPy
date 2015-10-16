@@ -22,7 +22,7 @@ from APITest.compat import (
 from APITest.models.adgroup import *
 import threading
 from itertools import izip
-from functools import update_wrapper
+from functools import update_wrapper, partial
 
 ##########################################################################
 #    log settings
@@ -71,6 +71,14 @@ def setup_env(source, **kwargs):
 # ------------------------------------------------------------------------
 
 
+def class_partial(func, **kwargs):
+    ''' 没法用 functools.partial '''
+    def wrapper(self, *args, **kwargs_wrapper):
+        kwargs.update(kwargs_wrapper)
+        return func(self, *args, **kwargs)
+    return update_wrapper(wrapper, func)
+
+
 class AdgroupMixin(TestCase):
 
     def setup_env(self, source):
@@ -91,7 +99,7 @@ class AdgroupMixin(TestCase):
             pass
             # self.uid = get_uid(user['username'])
 
-    def tearDown(self):
+    def _clear_material(self):
         ''' 清空所有的物料 '''
         server, user = self.server, self.user
         # response.body: {'campaignIds':[...]}
@@ -105,11 +113,18 @@ class AdgroupMixin(TestCase):
         '''
         应当转化为数据库操作
         '''
-        self.tearDown()
+        self._clear_material()
         res = self.addCampaign(
             body=CampaignType(CampaignName=LOG_FILENAME))
         assert_header(res.header)
         self.campaignId = res.body.CampaignTypes[0].campaignId
+        ''' 多线程的时候怎么破？~！
+        线程间的AdgroupType 是互不影响的？ '''
+        AdgroupType.campaignId = self.campaignId
+
+    def tearDown(self):
+        self._clear_material()
+        AdgroupType.campaignId = BLANK
 
     def run(self):
         AdgroupMixin.tearDown = lambda x: None
@@ -168,7 +183,23 @@ def add_setup(func):
     return update_wrapper(wrapper, func)
 
 
+
 class AddAdgroup(AdgroupMixin):
+    def _add(self, campaigns):
+        ''' 计划：添加，并检查 '''
+        server, user = self.server, self.user
+        if is_sequence(campaigns) is False:
+            campaigns = [campaigns]
+        res = self.addCampaign(body=campaigns)
+        assert_header(res.header, STATUS.SUCCESS)
+        ids = list(x.campaignId for x in res.body.campaignTypes)
+        # 查询数据库
+        res = self.getCampaignByCampaignId(body={'campaignIds': ids})
+        for idx, base in enumerate(res.body.campaignTypes):
+            expect = campaigns[idx].normalize(campaignId=base.campaignId)
+            assert expect == base, 'Expected: {}\nActually: {}'.format(
+                expect, base)
+
     def tst_default(self):
         self._add()
 
