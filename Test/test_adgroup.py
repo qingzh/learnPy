@@ -15,12 +15,10 @@ from APITest.settings import api
 from APITest.models.adgroup import *
 from APITest.models.campaign import *
 from APITest.utils import assert_header, get_log_filename
-from APITest.models.user import UserObject
 from APITest.models.const import STATUS
 from APITest.compat import (
     ThreadLocal, formatter, gen_chinese_unicode, log_dec)
 from APITest.models.adgroup import *
-import threading
 from itertools import izip
 from functools import update_wrapper, partial
 
@@ -62,6 +60,7 @@ USER = ThreadLocal.USER
 
 env = locals()
 
+
 def setup_env(source, **kwargs):
     for key, value in source.items():
         env[key] = partial(value, **kwargs)
@@ -73,6 +72,7 @@ def setup_env(source, **kwargs):
 
 def class_partial(func, **kwargs):
     ''' 没法用 functools.partial '''
+
     def wrapper(self, *args, **kwargs_wrapper):
         kwargs.update(kwargs_wrapper)
         return func(self, *args, **kwargs)
@@ -101,9 +101,8 @@ class AdgroupMixin(TestCase):
 
     def _clear_material(self):
         ''' 清空所有的物料 '''
-        server, user = self.server, self.user
         # response.body: {'campaignIds':[...]}
-        ids =self.getAllCampaignId().body
+        ids = self.getAllCampaignId().body
         if not ids['campaignIds']:
             return
         res = self.deleteCampaign(body=ids)
@@ -146,13 +145,6 @@ def _compare_dict(exp, act):
             'Expected: %s\nActually: %s\n' % (key, value, act[key])
 
 
-def _get_campaignId(server, user, refresh=False):
-    tag = user.get_tag(TAG_TYPE, refresh)
-    tag_dict = ThreadLocal.get_tag_dict((server, user.username), tag)
-    if 'campaignId' not in tag_dict:
-        tag_dict.update(user.add_campaign(server, TAG_TYPE))
-    return tag_dict['campaignId']
-
 # ------------------------------------------------------------------------
 # 定义测试用例 添加操作
 # ------------------------------------------------------------------------
@@ -183,8 +175,8 @@ def add_setup(func):
     return update_wrapper(wrapper, func)
 
 
-
 class AddAdgroup(AdgroupMixin):
+
     def _add(self, campaigns):
         ''' 计划：添加，并检查 '''
         server, user = self.server, self.user
@@ -202,6 +194,7 @@ class AddAdgroup(AdgroupMixin):
 
     def tst_default(self):
         self._add()
+
 
 @formatter
 @add_setup
