@@ -3,14 +3,16 @@ import threading
 import time
 
 
-def f(i):
+def f(i, results):
+    results.append(i)
     print threading.current_thread().name, ' [START]'
     time.sleep(i)
     print threading.current_thread().name, ' [END]'
 
 
 def main():
-    func_thread = lambda x: threading.Thread(target=f, name=x, args=(x,))
+    g = []
+    func_thread = lambda x: threading.Thread(target=f, name=x, args=(x, g))
     threads = map(func_thread, [5, 8, 12, 9])
     # the whole program will wait for the alive non-daemon threads
     daemonic = False

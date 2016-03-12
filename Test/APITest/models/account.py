@@ -85,14 +85,3 @@ class AccountType(APIType):
             excludeIp=chain_value(
                 obj, self, 'excludeIp', [''], set_wrapper),
         )
-
-    def __eq__(self, obj):
-        if not isinstance(obj, collections.Mapping):
-            return False
-        for key in self.iterkeys():
-            if key == 'status':
-                continue
-            if self[key] != obj[key]:
-                log.debug('key: %s, %s != %s', key, self[key], obj[key])
-                return False
-        return True
