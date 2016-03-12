@@ -1,5 +1,26 @@
+#! -*- coding: utf8 -*-
+
 import random
 import string
+
+
+def len_unicode(s, encoding='utf8'):
+    '''
+    unicode lenght in python is 3-bytes
+    convert it into 2-bytes
+
+    >>> len(u'哈哈')
+    6
+    >>> len_unicode(u'哈哈')
+    4
+    >>> len(u'哈哈a')
+    7
+    >>> len_unicode(u'哈哈a')
+    5
+    '''
+    if isinstance(s, str):
+        return (len(s) + len(s.decode(encoding))) / 2
+    return (len(s.encode(encoding)) + len(s)) / 2
 
 
 def gen_random_chinese():
