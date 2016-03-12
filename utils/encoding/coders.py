@@ -1,5 +1,25 @@
 #! -*- coding:utf8 -*-
+"""
+* encode(): Gets you from Unicode -> bytes
+* decode(): Gets you from bytes -> Unicode
+* codecs.open(encoding="utf8"): Read and write files directly to/from Unicode (you can use any encoding, not just utf8, but utf8 is most common).
 
+$ cat temp.log
+中文ABC
+$ ipython
+
+>>> import codecs
+>>> with open('temp.log', 'r') as f: s1 = f.read()
+>>> with codecs.open('temp.log', 'r', encoding='utf8')as f: s2 = f.read()
+>>> type(s1)
+<type 'str'>
+
+>>> type(s2)
+<type 'unicode'>
+
+* u"": Makes your string literals into Unicode objects rather than byte sequences.
+
+"""
 __all__ = ['encoder', 'decoder']
 
 
