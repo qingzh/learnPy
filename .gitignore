@@ -6,3 +6,4 @@ Test/APITest/settings.py
 chromedriver
 .*
 wolong.cookies
+Test/APITest/example.py
